@@ -119,14 +119,15 @@ def show_help():
     print("=" * 70)
 
 
-def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end):
+def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type):
     """
     Display hourly table results and export graph if successful
     """
     table_success = client.display_hourly_table_results(
         results_data,
         metric_name,
-        f"📈 Hourly Average Consumption ({first_range_start} to {last_range_end})"
+        f"📈 Hourly Average Consumption ({first_range_start} to {last_range_end})",
+        metric_type
     )
     
     # Export hourly graph if table was successful
@@ -135,7 +136,8 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             results_data,
             metric_name,
             first_range_start,
-            last_range_end
+            last_range_end,
+            metric_type=metric_type
         )
 
 def observability_impact_analysis(client, date_str):
@@ -154,13 +156,14 @@ def observability_impact_analysis(client, date_str):
         if date_str:            
             # Collect results from the three iterations
             bucket_usage_results_with_labels = []
+            cpu_usage_results_with_labels = []
+
             first_range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             print("\n" + "="*80)
             print(f"📈 Calculating dailyaverage consumption for 3 days from {first_range_start}")
             print("="*80)
-            
-
+                        
             for i in range(3):
                 range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
                 range_end = date_str + timedelta(hours=23.99)
@@ -168,12 +171,13 @@ def observability_impact_analysis(client, date_str):
 
                 # Perform different usage analysis
                 bucket_usage_result = client.get_bucket_usage_for_date_range("observability", range_start, range_end_rfc, 24)
+                cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-observability", range_start, range_end_rfc, 24)
                 
                 # Create time range label
                 time_range_label = f"Day {i+1}: {range_start} to {range_end_rfc}"
-                
-                # Add result with label to collection
+                                
                 bucket_usage_results_with_labels.append((bucket_usage_result, time_range_label))
+                cpu_usage_results_with_labels.append((cpu_usage_result, time_range_label))
                 
                 # switch to the next day
                 date_str = date_str + timedelta(hours=24)
@@ -184,20 +188,34 @@ def observability_impact_analysis(client, date_str):
             client.display_metric_usage_date_range_results(
                 bucket_usage_results_with_labels, 
                 "observability-bucket-consumption", 
-                f"📊 3-Day Observability Impact Analysis (starting {bucket_usage_results_with_labels[0][1].split(':')[1].strip().split(' to ')[0]})"
+                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                "bytes"
             )
             
+            print()
+            print(f"📈 Display daily cpu consumption for 3 days from {first_range_start} to {last_range_end}")
+            client.display_metric_usage_date_range_results(
+                cpu_usage_results_with_labels, 
+                "observability-cpu-consumption", 
+                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                "seconds"
+            )
+            print(f"📈 * % CPU Consumption (ex: 17% means 17% of one core, 100% means one full core, 200% means 2 cores")
+
             # Add hourly average consumption query for the entire period
             print("\n" + "="*80)
             print(f"📈 Calculating hourly average consumption from {first_range_start} to {last_range_end}")
             print("="*80)
             
-            # Query for hourly average over the entire 3-day period
-            print(f"📈 Display houly observability bucket consumption for 3 days from {first_range_start} to {last_range_end}")
             bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1)
+            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1)
+                        
+            print(f"📈 Display houly observability bucket consumption for 3 days from {first_range_start} to {last_range_end}")
+            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-consumption", first_range_start, last_range_end, "bytes")
             
-            # Display hourly table results
-            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-consumption", first_range_start, last_range_end)
+            print()
+            print(f"📈 Display houly cpu consumption for 3 days from {first_range_start} to {last_range_end}")
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", first_range_start, last_range_end, "seconds")  
 
         else:
             print(f"Analyzing metrics usage for last 24 hours")

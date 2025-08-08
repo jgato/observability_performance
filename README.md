@@ -56,6 +56,7 @@ When run **without** the `--spoke` parameter, the tool collects hub cluster obse
 
 **Storage Metrics:**
 - `NooBaa_bucket_used_bytes{bucket_name="observability"}` - Observability bucket usage over time
+- `container_cpu_usage_seconds_total{namespace="open-cluster-management-observability"}` - Observability NameSpace CPU consumption
 
 #### Analysis Provided
 

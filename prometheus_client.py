@@ -202,6 +202,68 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query bucket usage for date range: {e}")
 
+    def get_cpu_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int) -> Dict[str, Any]:
+        """
+        Get CPU usage for a specific namespace between two specific dates using range queries.
+        Uses container CPU usage metrics from Kubernetes/OpenShift.
+        
+        Args:
+            namespace: Name of the Kubernetes namespace (e.g., 'open-cluster-management-observability')
+            start_date: Start date in RFC3339 format (e.g., '2024-01-15T14:30:00Z')
+            end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
+            step: Step size in hours (e.g., 1 for 1-hour intervals)
+        Returns:
+            Query result with CPU usage metrics for the specified time range
+            
+        Raises:
+            ValueError: If namespace is empty
+        """
+        if not namespace or not namespace.strip():
+            raise ValueError("Namespace cannot be empty")
+        
+        # Clean namespace for PromQL query
+        namespace = namespace.strip()
+        
+        # Use Prometheus range query API
+        url = urljoin(self.base_url, '/api/v1/query_range')
+        params = {
+            'query': f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[24h]))',
+            'start': start_date,
+            'end': end_date,
+            'step': f'{step}h'  # Step size in hours
+        }
+        
+        try:
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Check if we got data
+            if result['data']['result']:
+                return result
+            else:
+                # Return empty result with helpful error message
+                return {
+                    'status': 'success',
+                    'data': {
+                        'resultType': 'matrix',
+                        'result': []
+                    },
+                    'error_info': {
+                        'message': f'No CPU usage data found for namespace "{namespace}" in the specified time range',
+                        'suggestions': [
+                            'Verify the namespace name is correct',
+                            'Check if the namespace exists and has running containers',
+                            'Ensure container metrics collection is enabled',
+                            'Verify the date range contains data',
+                            'Check if the time range is too far in the past (data retention)',
+                            'Confirm that cAdvisor/kubelet metrics are being scraped'
+                        ],
+                        'time_range': f'{start_date} to {end_date}'
+                    }
+                }
+        except Exception as e:
+            raise Exception(f"Failed to query CPU usage for date range: {e}")
 
 
     
@@ -231,6 +293,85 @@ class PrometheusClient:
             return f"{int(size)} {units[unit_index]}"
         else:
             return f"{size:.2f} {units[unit_index]}"
+
+    @staticmethod
+    def format_cpu_cores(cpu_value: float) -> str:
+        """
+        Convert CPU usage (in cores) to human-readable format.
+        
+        Args:
+            cpu_value: CPU usage in cores (e.g., 0.5 = 500 millicores)
+            
+        Returns:
+            Human-readable string (e.g., "1.5 cores", "250.3m", "2.8 cores")
+        """
+        if cpu_value == 0:
+            return "0m"
+        
+        if cpu_value < 1:
+            # Show in millicores for values less than 1 core
+            millicores = cpu_value * 1000
+            return f"{millicores:.1f}m"
+        else:
+            # Show in cores for values >= 1 core
+            return f"{cpu_value:.3f} cores"
+
+    @staticmethod
+    def format_metric_value(value: float, metric_type: str = 'bytes') -> str:
+        """
+        Format metric values based on their type.
+        
+        Args:
+            value: The numeric value to format
+            metric_type: Type of metric ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
+            
+        Returns:
+            Human-readable formatted string
+        """
+        if metric_type == 'bytes':
+            return PrometheusClient.format_bytes(value)
+        elif metric_type == 'cpu_cores':
+            return PrometheusClient.format_cpu_cores(value)
+        elif metric_type == 'seconds':
+            if value < 60:
+                return f"{value:.2f}s"
+            elif value < 3600:
+                minutes = value / 60
+                return f"{minutes:.2f}m"
+            else:
+                hours = value / 3600
+                return f"{hours:.2f}h"
+        elif metric_type == 'percentage':
+            return f"{value:.2f}%"
+        elif metric_type == 'count':
+            return f"{value:,.0f}"
+        else:  # generic or unknown
+            # For generic values, use scientific notation for very large/small numbers
+            if abs(value) >= 1e6 or (abs(value) < 0.001 and value != 0):
+                return f"{value:.2e}"
+            else:
+                return f"{value:.3f}"
+
+    @staticmethod
+    def _get_metric_unit_label(metric_type: str) -> str:
+        """
+        Get the unit label for different metric types.
+        
+        Args:
+            metric_type: Type of metric
+            
+        Returns:
+            Unit label string for table headers
+        """
+        unit_labels = {
+            'bytes': 'Bytes',
+            'cpu_cores': 'Cores',
+            'seconds': 'Seconds',
+            'percentage': '%',
+            'count': 'Count',
+            'generic': 'Value'
+        }
+        return unit_labels.get(metric_type, 'Value')
     
     def display_bucket_usage_results(self, result: Dict[str, Any], bucket_name: str, hours: int):
         """
@@ -304,7 +445,7 @@ class PrometheusClient:
         print(tabulate(rows, headers=headers, tablefmt="grid"))
         print()
     
-    def display_metric_usage_date_range_results(self, results_data, metric_name: str, title: str = None):
+    def display_metric_usage_date_range_results(self, results_data, metric_name: str, title: str = None, metric_type: str = 'bytes'):
         """
         Display metric usage results for date ranges in a table format.
         Can handle both single results and concatenated results from multiple ranges.
@@ -313,6 +454,7 @@ class PrometheusClient:
             results_data: List of tuples (result, time_range_label) or single result dict
             metric_name: Name of the metric
             title: Optional custom title for the report
+            metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
         """
         # Handle backward compatibility - if single result is passed
         if isinstance(results_data, dict):
@@ -344,14 +486,22 @@ class PrometheusClient:
                 metric_info = series.get('metric', {})
                 values = series.get('values', [])
                 
-                for timestamp, bytes_value in values:
+                for timestamp, metric_value in values:
                     try:
-                        bytes_float = float(bytes_value)
-                        readable_size = self.format_bytes(bytes_float)
-                        formatted_bytes = f"{bytes_float:,.0f}"
+                        if metric_type == 'bytes':
+                            value_float = float(metric_value)
+                            readable_value = self.format_metric_value(value_float, metric_type)
+                            formatted_value = f"{value_float:,.6f}".rstrip('0').rstrip('.')
+                        elif metric_type == 'seconds':
+                            value_float = float(metric_value)
+                            formatted_value = value_float
+                            readable_value = f"{value_float * 100:.2f} %"                            
+                        else:   
+                            readable_value = metric_value
+                            formatted_value = metric_value
                     except (ValueError, TypeError):
-                        readable_size = bytes_value
-                        formatted_bytes = bytes_value
+                        readable_value = metric_value
+                        formatted_value = metric_value
                     
                     # Format timestamp
                     try:
@@ -366,15 +516,15 @@ class PrometheusClient:
                             time_range_label if time_range_label else f"Range {i+1}",
                             formatted_timestamp,
                             metric_info.get('metric_name', metric_name),
-                            formatted_bytes,
-                            readable_size
+                            formatted_value,
+                            readable_value
                         ]
                     else:
                         row = [
                             formatted_timestamp,
                             metric_info.get('metric_name', metric_name),
-                            formatted_bytes,
-                            readable_size
+                            formatted_value,
+                            readable_value
                         ]
                     all_rows.append(row)
         
@@ -389,13 +539,17 @@ class PrometheusClient:
         print(f"✅ Found {len(all_rows)} data points across {len(results_data)} time range(s)")
         if failed_queries > 0:
             print(f"⚠️  {failed_queries} out of {len(results_data)} queries failed")
-        print()
         
         # Set headers based on whether we have multiple ranges
+        metric_unit = self._get_metric_unit_label(metric_type)
+        
+        # For CPU metrics (seconds), the readable value is shown as percentage
+        readable_unit = "%" if metric_type == 'seconds' else "Human Readable"
+        
         if len(results_data) > 1:
-            headers = ["Time Range", "Timestamp", "metric Name", "Usage (Bytes)", "Usage (Human Readable)"]
+            headers = ["Time Range", "Timestamp", "Metric Name", f"Value ({metric_unit})", f"Value ({readable_unit})"]
         else:
-            headers = ["Timestamp", "metric Name", "Usage (Bytes)", "Usage (Human Readable)"]
+            headers = ["Timestamp", "Metric Name", f"Value ({metric_unit})", f"Value ({readable_unit})"]
         
         # Sort by timestamp (second column for multi-range, first for single)
         timestamp_col = 1 if len(results_data) > 1 else 0
@@ -407,7 +561,7 @@ class PrometheusClient:
  
 
     def create_hourly_usage_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                                 start_time: str, end_time: str, output_dir: str = "."):
+                                 start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes'):
         """
         Create a graphical visualization of hourly metric usage data.
         
@@ -417,23 +571,37 @@ class PrometheusClient:
             start_time: Start time of the analysis
             end_time: End time of the analysis
             output_dir: Directory to save the graph (default: current directory)
+            metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
         """
         try:
             # Extract timestamps and values from the results
             timestamps = []
             values = []
-            
             if results_data['status'] == 'success' and results_data['data']['result']:
                 for series in results_data['data']['result']:
                     series_values = series.get('values', [])
-                    for timestamp, bytes_value in series_values:
+                    for timestamp, metric_value in series_values:
                         try:
                             # Convert timestamp to datetime
                             dt = datetime.fromtimestamp(float(timestamp))
                             timestamps.append(dt)
-                            # Convert bytes to GB for better readability
-                            gb_value = float(bytes_value) / (1024**3)
-                            values.append(gb_value)
+                            
+                            # Transform value based on metric type for better Y-axis display
+                            raw_value = float(metric_value)
+                            if metric_type == 'bytes':
+                                # Convert bytes to GB for better readability on graph
+                                display_value = raw_value / (1024**3)
+                            elif metric_type == 'seconds':
+                                # Convert to percentage for CPU usage
+                                display_value = raw_value * 100
+                            elif metric_type == 'cpu_cores':
+                                # Keep cores as-is but could convert to millicores if needed
+                                display_value = raw_value
+                            else:
+                                # Keep raw value for other metric types
+                                display_value = raw_value
+                                
+                            values.append(display_value)
                         except (ValueError, TypeError):
                             continue
             
@@ -456,7 +624,18 @@ class PrometheusClient:
                      f'📅 {start_time} to {end_time}', fontsize=16, fontweight='bold', pad=20)
             
             plt.xlabel('Time', fontsize=12, fontweight='bold')
-            plt.ylabel('Usage (GB)', fontsize=12, fontweight='bold')
+            
+            # Set Y-axis label based on how we transformed the values
+            if metric_type == 'bytes':
+                ylabel = 'Usage (GB)'
+            elif metric_type == 'seconds':
+                ylabel = 'CPU Usage (%)'
+            elif metric_type == 'cpu_cores':
+                ylabel = 'CPU Usage (Cores)'
+            else:
+                ylabel = f'Value ({self._get_metric_unit_label(metric_type)})'
+            
+            plt.ylabel(ylabel, fontsize=12, fontweight='bold')
             
             # Format x-axis to show dates nicely
             plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
@@ -475,10 +654,28 @@ class PrometheusClient:
             max_usage = max(values)
             growth_rate = ((values[-1] - values[0]) / values[0]) * 100 if values[0] != 0 else 0
             
+            # Format values according to the transformed display values
+            if metric_type == 'bytes':
+                avg_formatted = f"{avg_usage:.2f} GB"
+                min_formatted = f"{min_usage:.2f} GB"
+                max_formatted = f"{max_usage:.2f} GB"
+            elif metric_type == 'seconds':
+                avg_formatted = f"{avg_usage:.2f}%"
+                min_formatted = f"{min_usage:.2f}%"
+                max_formatted = f"{max_usage:.2f}%"
+            elif metric_type == 'cpu_cores':
+                avg_formatted = f"{avg_usage:.3f} cores"
+                min_formatted = f"{min_usage:.3f} cores"
+                max_formatted = f"{max_usage:.3f} cores"
+            else:
+                avg_formatted = self.format_metric_value(avg_usage, metric_type)
+                min_formatted = self.format_metric_value(min_usage, metric_type)
+                max_formatted = self.format_metric_value(max_usage, metric_type)
+            
             stats_text = f'📊 Statistics:\n' \
-                        f'• Avg: {avg_usage:.2f} GB\n' \
-                        f'• Min: {min_usage:.2f} GB\n' \
-                        f'• Max: {max_usage:.2f} GB\n' \
+                        f'• Avg: {avg_formatted}\n' \
+                        f'• Min: {min_formatted}\n' \
+                        f'• Max: {max_formatted}\n' \
                         f'• Growth: {growth_rate:+.1f}%\n' \
                         f'• Points: {len(values)}'
             
@@ -512,7 +709,7 @@ class PrometheusClient:
             print(f"❌ Error creating graph: {e}")
             return None 
 
-    def display_hourly_table_results(self, results_data: Dict[str, Any], metric_name: str, title: str = None):
+    def display_hourly_table_results(self, results_data: Dict[str, Any], metric_name: str, title: str = None, metric_type: str = 'bytes'):
         """
         Display hourly analysis results in table format.
         Generic function that can be used for any hourly metrics analysis.
@@ -521,6 +718,7 @@ class PrometheusClient:
             results_data: Prometheus query result data
             metric_name: Name of metric identifier
             title: Optional custom title for the analysis
+            metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
         
         Returns:
             bool: True if data was successfully displayed, False otherwise
@@ -533,7 +731,8 @@ class PrometheusClient:
             self.display_metric_usage_date_range_results(
                 results_data,
                 metric_name, 
-                title
+                title,
+                metric_type
             )
             return True
         else:
@@ -545,7 +744,7 @@ class PrometheusClient:
             return False
     
     def export_hourly_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                           start_time: str, end_time: str, output_dir: str = "."):
+                           start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes'):
         """
         Export hourly analysis results to a graphical file.
         Generic function that can be used for any hourly metrics analysis.
@@ -556,6 +755,7 @@ class PrometheusClient:
             start_time: Start time of the analysis
             end_time: End time of the analysis
             output_dir: Directory to save the graph (default: current directory)
+            metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
         
         Returns:
             str or None: Path to the generated graph file, or None if failed
@@ -567,7 +767,8 @@ class PrometheusClient:
                 metric_name, 
                 start_time, 
                 end_time,
-                output_dir
+                output_dir,
+                metric_type
             )
             if graph_file:
                 return graph_file
