@@ -119,6 +119,25 @@ def show_help():
     print("=" * 70)
 
 
+def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end):
+    """
+    Display hourly table results and export graph if successful
+    """
+    table_success = client.display_hourly_table_results(
+        results_data,
+        metric_name,
+        f"📈 Hourly Average Consumption ({first_range_start} to {last_range_end})"
+    )
+    
+    # Export hourly graph if table was successful
+    if table_success:
+        graph_file = client.export_hourly_graph(
+            results_data,
+            metric_name,
+            first_range_start,
+            last_range_end
+        )
+
 def observability_impact_analysis(client, date_str):
     """
     Perform observability impact analysis for the 'observability' bucket
@@ -133,83 +152,62 @@ def observability_impact_analysis(client, date_str):
     
     try:
         if date_str:            
-            print(f"Getting average usage for 'observability' bucket for 3 ranges of 24 hours from {date_str}.")
-            
             # Collect results from the three iterations
-            results_with_labels = []
+            bucket_usage_results_with_labels = []
             first_range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            print("\n" + "="*80)
+            print(f"📈 Calculating dailyaverage consumption for 3 days from {first_range_start}")
+            print("="*80)
+            
+
             for i in range(3):
                 range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
                 range_end = date_str + timedelta(hours=23.99)
                 range_end_rfc = range_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-                # Perform bucket usage analysis
-                bucket_result = client.get_bucket_usage_for_date_range("observability", range_start, range_end_rfc, 24)
+                # Perform different usage analysis
+                bucket_usage_result = client.get_bucket_usage_for_date_range("observability", range_start, range_end_rfc, 24)
                 
                 # Create time range label
                 time_range_label = f"Day {i+1}: {range_start} to {range_end_rfc}"
                 
                 # Add result with label to collection
-                results_with_labels.append((bucket_result, time_range_label))
+                bucket_usage_results_with_labels.append((bucket_usage_result, time_range_label))
                 
                 # switch to the next day
                 date_str = date_str + timedelta(hours=24)
             last_range_end = range_end_rfc
-            # Display all results using the modified function
-            client.display_bucket_usage_date_range_results(
-                results_with_labels, 
-                "observability", 
-                f"📊 3-Day Observability Impact Analysis (starting {results_with_labels[0][1].split(':')[1].strip().split(' to ')[0]})"
+
+            print(f"📈 Display daily observability bucket consumption for 3 days from {first_range_start} to {last_range_end}")
+
+            client.display_metric_usage_date_range_results(
+                bucket_usage_results_with_labels, 
+                "observability-bucket-consumption", 
+                f"📊 3-Day Observability Impact Analysis (starting {bucket_usage_results_with_labels[0][1].split(':')[1].strip().split(' to ')[0]})"
             )
             
             # Add hourly average consumption query for the entire period
             print("\n" + "="*80)
-            print("📈 Additional Analysis: Hourly Average Consumption")
+            print(f"📈 Calculating hourly average consumption from {first_range_start} to {last_range_end}")
             print("="*80)
-              
-            print(f"Calculating hourly average consumption from {first_range_start} to {last_range_end}")
-        
-            # Query for hourly average over the entire 3-day period
-            hourly_avg_query = f'avg_over_time(NooBaa_bucket_used_bytes{{bucket_name="observability"}}[1h])'
-            hourly_avg_result = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1)
             
-            if hourly_avg_result['status'] == 'success' and hourly_avg_result['data']['result']:
-                # Display hourly data in table format using the existing function
-                client.display_bucket_usage_date_range_results(
-                    hourly_avg_result,
-                    "observability", 
-                    f"📈 Hourly Average Consumption ({first_range_start} to {last_range_end})"
-                )
-                
-                        # Generate graphical visualization
-                print(f"\n📈 Generating graphical visualization...")
-                graph_file = client.create_hourly_usage_graph(
-                    hourly_avg_result, 
-                    "observability", 
-                    first_range_start, 
-                    last_range_end
-                )
-                if graph_file:
-                    print(f"🎨 Visual trend analysis saved to: {graph_file}")
-        
-            else:
-                print("❌ Failed to retrieve hourly average data")
-                if 'error_info' in hourly_avg_result:
-                    print(f"   Error: {hourly_avg_result['error_info']['message']}")
+            # Query for hourly average over the entire 3-day period
+            print(f"📈 Display houly observability bucket consumption for 3 days from {first_range_start} to {last_range_end}")
+            bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1)
+            
+            # Display hourly table results
+            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-consumption", first_range_start, last_range_end)
 
         else:
-            print(f"Analyzing 'observability' bucket usage for last 24 hours")
+            print(f"Analyzing metrics usage for last 24 hours")
             print("- Use --date 'DD/MM/YYYY HH:MM:SS' for 24-hour bucket usage analysis after the date")
 
             bucket_result = client.get_bucket_average_usage("observability", 24)
             client.display_bucket_usage_results(bucket_result, "observability", 24)
             
     except Exception as e:
-        print(f"❌ Observability impact analysis failed: {e}")
-        print("💡 This is expected if 'observability' bucket doesn't exist or NooBaa is not available")
-    except Exception as e:
-        print(f"❌ Error calculating hourly average: {e}")
-        print("💡 This might indicate insufficient data or connectivity issues")        
+        print(f"❌ Metrics impact analysis failed: {e}")
 
 
 def main():

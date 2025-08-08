@@ -303,16 +303,15 @@ class PrometheusClient:
         # Display as table
         print(tabulate(rows, headers=headers, tablefmt="grid"))
         print()
-        print("💾 Raw data available via result['data']['result'] for programmatic access")
     
-    def display_bucket_usage_date_range_results(self, results_data, bucket_name: str, title: str = None):
+    def display_metric_usage_date_range_results(self, results_data, metric_name: str, title: str = None):
         """
-        Display bucket usage results for date ranges in a table format.
+        Display metric usage results for date ranges in a table format.
         Can handle both single results and concatenated results from multiple ranges.
         
         Args:
             results_data: List of tuples (result, time_range_label) or single result dict
-            bucket_name: Name of the bucket
+            metric_name: Name of the metric
             title: Optional custom title for the report
         """
         # Handle backward compatibility - if single result is passed
@@ -321,12 +320,9 @@ class PrometheusClient:
         
         if not title:
             if len(results_data) > 1:
-                title = f"📊 Combined Bucket Usage Report for '{bucket_name}' ({len(results_data)} time ranges)"
+                title = f"📊 Combined metric Usage Report for '{metric_name}' ({len(results_data)} time ranges)"
             else:
-                title = f"📊 Bucket Usage Report for '{bucket_name}'"
-        
-        print(title)
-        print("=" * min(120, len(title) + 20))
+                title = f"📊 metric Usage Report for '{metric_name}'"
         
         # Collect all data from all results
         all_rows = []
@@ -369,14 +365,14 @@ class PrometheusClient:
                         row = [
                             time_range_label if time_range_label else f"Range {i+1}",
                             formatted_timestamp,
-                            metric_info.get('bucket_name', bucket_name),
+                            metric_info.get('metric_name', metric_name),
                             formatted_bytes,
                             readable_size
                         ]
                     else:
                         row = [
                             formatted_timestamp,
-                            metric_info.get('bucket_name', bucket_name),
+                            metric_info.get('metric_name', metric_name),
                             formatted_bytes,
                             readable_size
                         ]
@@ -384,8 +380,8 @@ class PrometheusClient:
         
         # Check if we have any data
         if not all_rows:
-            print("❌ No bucket usage data found for the specified time ranges")
-            print("💡 This may indicate the bucket doesn't exist or has no data for these periods")
+            print("❌ No metric usage data found for the specified time ranges")
+            print("💡 This may indicate the metric doesn't exist or has no data for these periods")
             if failed_queries > 0:
                 print(f"   {failed_queries} out of {len(results_data)} queries failed")
             return
@@ -397,9 +393,9 @@ class PrometheusClient:
         
         # Set headers based on whether we have multiple ranges
         if len(results_data) > 1:
-            headers = ["Time Range", "Timestamp", "Bucket Name", "Usage (Bytes)", "Usage (Human Readable)"]
+            headers = ["Time Range", "Timestamp", "metric Name", "Usage (Bytes)", "Usage (Human Readable)"]
         else:
-            headers = ["Timestamp", "Bucket Name", "Usage (Bytes)", "Usage (Human Readable)"]
+            headers = ["Timestamp", "metric Name", "Usage (Bytes)", "Usage (Human Readable)"]
         
         # Sort by timestamp (second column for multi-range, first for single)
         timestamp_col = 1 if len(results_data) > 1 else 0
@@ -408,40 +404,16 @@ class PrometheusClient:
         # Display as table
         print(tabulate(all_rows, headers=headers, tablefmt="grid"))
         
-        # Show summary statistics
-        # if all_rows:
-        #     byte_values = []
-        #     bytes_col = 3 if len(results_data) > 1 else 2
-            
-        #     for row in all_rows:
-        #         try:
-        #             # Remove commas and convert to float
-        #             byte_val = float(row[bytes_col].replace(',', ''))
-        #             byte_values.append(byte_val)
-        #         except (ValueError, TypeError):
-        #             continue
-            
-        #     if byte_values:
-        #         min_usage = min(byte_values)
-        #         max_usage = max(byte_values)
-        #         avg_usage = sum(byte_values) / len(byte_values)
-                
-        #         print(f"\n📈 Overall Usage Summary:")
-        #         print(f"   Minimum: {self.format_bytes(min_usage)} ({min_usage:,.0f} bytes)")
-        #         print(f"   Maximum: {self.format_bytes(max_usage)} ({max_usage:,.0f} bytes)")
-        #         print(f"   Average: {self.format_bytes(avg_usage)} ({avg_usage:,.0f} bytes)")
-        #         print(f"   Total Data Points: {len(byte_values)}")
-        
-        print("\n💾 Raw data available for programmatic access") 
+ 
 
-    def create_hourly_usage_graph(self, results_data: Dict[str, Any], bucket_name: str, 
+    def create_hourly_usage_graph(self, results_data: Dict[str, Any], metric_name: str, 
                                  start_time: str, end_time: str, output_dir: str = "."):
         """
-        Create a graphical visualization of hourly bucket usage data.
+        Create a graphical visualization of hourly metric usage data.
         
         Args:
             results_data: Prometheus query result data
-            bucket_name: Name of the bucket
+            metric_name: Name of the metric
             start_time: Start time of the analysis
             end_time: End time of the analysis
             output_dir: Directory to save the graph (default: current directory)
@@ -480,7 +452,7 @@ class PrometheusClient:
                     color='#1f77b4', markerfacecolor='#ff7f0e', markeredgecolor='#1f77b4')
             
             # Customize the plot
-            plt.title(f'📊 Hourly Usage Trend - {bucket_name} Bucket\n'
+            plt.title(f'📊 Hourly Usage Trend - {metric_name} \n'
                      f'📅 {start_time} to {end_time}', fontsize=16, fontweight='bold', pad=20)
             
             plt.xlabel('Time', fontsize=12, fontweight='bold')
@@ -524,17 +496,13 @@ class PrometheusClient:
             # Create filename with metric name and full range
             start_date = start_time[:19].replace(':', '-').replace('T', '_')
             end_date = end_time[:19].replace(':', '-').replace('T', '_')
-            filename = f"{bucket_name}_NooBaa_bucket_used_bytes_{start_date}_to_{end_date}.png"
+            filename = f"{metric_name}_{start_date}_to_{end_date}.png"
             filepath = os.path.join(results_dir, filename)
             plt.savefig(filepath, dpi=300, bbox_inches='tight', 
                        facecolor='white', edgecolor='none')
             
             print(f"✅ Graph saved as: {filepath}")
-            print(f"📊 Graph shows {len(values)} hourly data points from {timestamps[0]} to {timestamps[-1]}")
-            
-            # Don't show the plot, just save it
-            print("📈 Graph saved to results directory (display disabled for batch processing)")
-            
+                        
             # Close the plot to free memory
             plt.close()
             
@@ -542,4 +510,70 @@ class PrometheusClient:
             
         except Exception as e:
             print(f"❌ Error creating graph: {e}")
+            return None 
+
+    def display_hourly_table_results(self, results_data: Dict[str, Any], metric_name: str, title: str = None):
+        """
+        Display hourly analysis results in table format.
+        Generic function that can be used for any hourly metrics analysis.
+        
+        Args:
+            results_data: Prometheus query result data
+            metric_name: Name of metric identifier
+            title: Optional custom title for the analysis
+        
+        Returns:
+            bool: True if data was successfully displayed, False otherwise
+        """
+        if not title:
+            title = f"📈 Hourly Analysis Results"
+        
+        if results_data.get('status') == 'success' and results_data.get('data', {}).get('result'):
+            # Display hourly data in table format using the existing function
+            self.display_metric_usage_date_range_results(
+                results_data,
+                metric_name, 
+                title
+            )
+            return True
+        else:
+            print(f"❌ Failed to retrieve hourly data for {title}")
+            if 'error_info' in results_data:
+                print(f"   Error: {results_data['error_info']['message']}")
+            else:
+                print(f"   Status: {results_data.get('status', 'unknown')}")
+            return False
+    
+    def export_hourly_graph(self, results_data: Dict[str, Any], metric_name: str, 
+                           start_time: str, end_time: str, output_dir: str = "."):
+        """
+        Export hourly analysis results to a graphical file.
+        Generic function that can be used for any hourly metrics analysis.
+        
+        Args:
+            results_data: Prometheus query result data
+            metric_name: Name of the metric
+            start_time: Start time of the analysis
+            end_time: End time of the analysis
+            output_dir: Directory to save the graph (default: current directory)
+        
+        Returns:
+            str or None: Path to the generated graph file, or None if failed
+        """
+        if results_data.get('status') == 'success' and results_data.get('data', {}).get('result'):
+            print(f"\n📈 Generating graphical visualization...")
+            graph_file = self.create_hourly_usage_graph(
+                results_data, 
+                metric_name, 
+                start_time, 
+                end_time,
+                output_dir
+            )
+            if graph_file:
+                return graph_file
+            else:
+                print("❌ Failed to generate graph file")
+                return None
+        else:
+            print(f"❌ Cannot export graph - no valid data available")
             return None 
