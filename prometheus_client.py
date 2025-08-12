@@ -140,7 +140,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query bucket usage: {e}")
     
-    def get_bucket_usage_for_date_range(self, bucket_name: str, start_date: str, end_date: str, step: int) -> Dict[str, Any]:
+    def get_bucket_usage_for_date_range(self, bucket_name: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
         """
         Get bucket usage between two specific dates using range queries.
         Uses NooBaa bucket usage metrics from OpenShift Data Foundation.
@@ -150,6 +150,7 @@ class PrometheusClient:
             start_date: Start date in RFC3339 format (e.g., '2024-01-15T14:30:00Z')
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
+            range: Range in hours (e.g., 24 for 24-hour range)
         Returns:
             Query result with bucket usage metrics for the specified time range
             
@@ -165,10 +166,10 @@ class PrometheusClient:
         # Use Prometheus range query API
         url = urljoin(self.base_url, '/api/v1/query_range')
         params = {
-            'query': f'avg_over_time(NooBaa_bucket_used_bytes{{bucket_name="{bucket_name}"}}[1h])',
+            'query': f'avg_over_time(NooBaa_bucket_used_bytes{{bucket_name="{bucket_name}"}}[{range}h])',
             'start': start_date,
             'end': end_date,
-            'step': f'{step}h'  # 1-hour intervals
+            'step': f'{step}h'
         }
         
         try:
@@ -202,7 +203,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query bucket usage for date range: {e}")
 
-    def get_cpu_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int) -> Dict[str, Any]:
+    def get_cpu_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
         """
         Get CPU usage for a specific namespace between two specific dates using range queries.
         Uses container CPU usage metrics from Kubernetes/OpenShift.
@@ -212,6 +213,7 @@ class PrometheusClient:
             start_date: Start date in RFC3339 format (e.g., '2024-01-15T14:30:00Z')
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
+            range: Range in hours (e.g., 24 for 24-hour range)
         Returns:
             Query result with CPU usage metrics for the specified time range
             
@@ -227,7 +229,7 @@ class PrometheusClient:
         # Use Prometheus range query API
         url = urljoin(self.base_url, '/api/v1/query_range')
         params = {
-            'query': f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[24h]))',
+            'query': f'sum(rate(container_cpu_usage_seconds_total{{namespace="{namespace}"}}[{range}h]))',
             'start': start_date,
             'end': end_date,
             'step': f'{step}h'  # Step size in hours
@@ -264,6 +266,70 @@ class PrometheusClient:
                 }
         except Exception as e:
             raise Exception(f"Failed to query CPU usage for date range: {e}")
+
+    def get_memory_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+        """
+        Get memory usage for a specific namespace between two specific dates using range queries.
+        Uses container memory usage metrics from Kubernetes/OpenShift.
+        
+        Args:
+            namespace: Name of the Kubernetes namespace (e.g., 'open-cluster-management-observability')
+            start_date: Start date in RFC3339 format (e.g., '2024-01-15T14:30:00Z')
+            end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
+            step: Step size in hours (e.g., 1 for 1-hour intervals)
+            range: Range in hours (e.g., 24 for 24-hour range)
+        Returns:
+            Query result with memory usage metrics for the specified time range
+            
+        Raises:
+            ValueError: If namespace is empty
+        """
+        if not namespace or not namespace.strip():
+            raise ValueError("Namespace cannot be empty")
+        
+        # Clean namespace for PromQL query
+        namespace = namespace.strip()
+        
+        # Use Prometheus range query API for memory usage
+        url = urljoin(self.base_url, '/api/v1/query_range')
+        params = {
+            'query': f'sum(rate(container_memory_usage_bytes{{namespace="{namespace}", container!=""}}[{range}h]))',
+            'start': start_date,
+            'end': end_date,
+            'step': f'{step}h'  # Step size in hours
+        }
+        
+        try:
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            
+            # Check if we got data
+            if result['data']['result']:
+                return result
+            else:
+                # Return empty result with helpful error message
+                return {
+                    'status': 'success',
+                    'data': {
+                        'resultType': 'matrix',
+                        'result': []
+                    },
+                    'error_info': {
+                        'message': f'No memory usage data found for namespace "{namespace}" in the specified time range',
+                        'suggestions': [
+                            'Verify the namespace name is correct',
+                            'Check if the namespace exists and has running containers',
+                            'Ensure container metrics collection is enabled',
+                            'Verify the date range contains data',
+                            'Check if the time range is too far in the past (data retention)',
+                            'Confirm that cAdvisor/kubelet metrics are being scraped'
+                        ],
+                        'time_range': f'{start_date} to {end_date}'
+                    }
+                }
+        except Exception as e:
+            raise Exception(f"Failed to query memory usage for date range: {e}")
 
 
     
@@ -330,6 +396,8 @@ class PrometheusClient:
         """
         if metric_type == 'bytes':
             return PrometheusClient.format_bytes(value)
+        elif metric_type == 'memory':
+            return PrometheusClient.format_bytes(value)
         elif metric_type == 'cpu_cores':
             return PrometheusClient.format_cpu_cores(value)
         elif metric_type == 'seconds':
@@ -365,6 +433,7 @@ class PrometheusClient:
         """
         unit_labels = {
             'bytes': 'Bytes',
+            'memory': 'Bytes',
             'cpu_cores': 'Cores',
             'seconds': 'Seconds',
             'percentage': '%',
@@ -591,6 +660,9 @@ class PrometheusClient:
                             if metric_type == 'bytes':
                                 # Convert bytes to GB for better readability on graph
                                 display_value = raw_value / (1024**3)
+                            elif metric_type == 'memory':
+                                # Convert memory bytes to GB for better readability
+                                display_value = raw_value / (1024**3)
                             elif metric_type == 'seconds':
                                 # Convert to percentage for CPU usage
                                 display_value = raw_value * 100
@@ -628,6 +700,8 @@ class PrometheusClient:
             # Set Y-axis label based on how we transformed the values
             if metric_type == 'bytes':
                 ylabel = 'Usage (GB)'
+            elif metric_type == 'memory':
+                ylabel = 'Memory Usage (GB)'
             elif metric_type == 'seconds':
                 ylabel = 'CPU Usage (%)'
             elif metric_type == 'cpu_cores':
@@ -656,6 +730,10 @@ class PrometheusClient:
             
             # Format values according to the transformed display values
             if metric_type == 'bytes':
+                avg_formatted = f"{avg_usage:.2f} GB"
+                min_formatted = f"{min_usage:.2f} GB"
+                max_formatted = f"{max_usage:.2f} GB"
+            elif metric_type == 'memory':
                 avg_formatted = f"{avg_usage:.2f} GB"
                 min_formatted = f"{min_usage:.2f} GB"
                 max_formatted = f"{max_usage:.2f} GB"
