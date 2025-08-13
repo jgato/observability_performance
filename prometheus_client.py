@@ -293,7 +293,7 @@ class PrometheusClient:
         # Use Prometheus range query API for memory usage
         url = urljoin(self.base_url, '/api/v1/query_range')
         params = {
-            'query': f'sum(rate(container_memory_usage_bytes{{namespace="{namespace}", container!=""}}[{range}h]))',
+            'query': f'sum(avg_over_time(container_memory_usage_bytes{{namespace="{namespace}", container!=""}}[{range}h]))',
             'start': start_date,
             'end': end_date,
             'step': f'{step}h'  # Step size in hours
@@ -330,6 +330,65 @@ class PrometheusClient:
                 }
         except Exception as e:
             raise Exception(f"Failed to query memory usage for date range: {e}")
+
+    def get_network_receive_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+        """
+        Get network receive traffic for a specific namespace between two dates using range queries.
+        Uses container network receive metrics from Kubernetes/OpenShift.
+
+        Args:
+            namespace: Name of the Kubernetes namespace (e.g., 'open-cluster-management-observability')
+            start_date: Start date in RFC3339 format (e.g., '2024-01-15T14:30:00Z')
+            end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
+            step: Step size in hours (e.g., 1 for 1-hour intervals)
+            range: Range in hours for the rate window (e.g., 24 for 24-hour range)
+        Returns:
+            Query result with network receive metrics (bytes per second) for the specified time range
+
+        Raises:
+            ValueError: If namespace is empty
+        """
+        if not namespace or not namespace.strip():
+            raise ValueError("Namespace cannot be empty")
+
+        namespace = namespace.strip()
+
+        # Use Prometheus range query API for network receive traffic (bytes per second)
+        url = urljoin(self.base_url, '/api/v1/query_range')
+        params = {
+            'query': f'sum(rate(container_network_receive_bytes_total{{namespace="{namespace}", pod!="", interface!="lo"}}[{range}h]))',
+            'start': start_date,
+            'end': end_date,
+            'step': f'{step}h'
+        }
+
+        try:
+            response = self.session.get(url, params=params, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+
+            if result['data']['result']:
+                return result
+            else:
+                return {
+                    'status': 'success',
+                    'data': {
+                        'resultType': 'matrix',
+                        'result': []
+                    },
+                    'error_info': {
+                        'message': f'No network receive data found for namespace "{namespace}" in the specified time range',
+                        'suggestions': [
+                            'Verify the namespace name is correct',
+                            'Ensure pods in the namespace have active network traffic',
+                            'Verify the date range contains data',
+                            'Check data retention limits in Prometheus'
+                        ],
+                        'time_range': f'{start_date} to {end_date}'
+                    }
+                }
+        except Exception as e:
+            raise Exception(f"Failed to query network receive traffic for date range: {e}")
 
 
     
@@ -398,6 +457,8 @@ class PrometheusClient:
             return PrometheusClient.format_bytes(value)
         elif metric_type == 'memory':
             return PrometheusClient.format_bytes(value)
+        elif metric_type == 'bytes_per_second':
+            return PrometheusClient.format_bytes(value) + '/s'
         elif metric_type == 'cpu_cores':
             return PrometheusClient.format_cpu_cores(value)
         elif metric_type == 'seconds':
@@ -433,6 +494,7 @@ class PrometheusClient:
         """
         unit_labels = {
             'bytes': 'Bytes',
+            'bytes_per_second': 'Bytes/s',
             'memory': 'Bytes',
             'cpu_cores': 'Cores',
             'seconds': 'Seconds',
@@ -561,6 +623,10 @@ class PrometheusClient:
                             value_float = float(metric_value)
                             readable_value = self.format_metric_value(value_float, metric_type)
                             formatted_value = f"{value_float:,.6f}".rstrip('0').rstrip('.')
+                        elif metric_type == 'bytes_per_second':
+                            value_float = float(metric_value)
+                            readable_value = self.format_metric_value(value_float, metric_type)
+                            formatted_value = f"{value_float:,.6f}".rstrip('0').rstrip('.')
                         elif metric_type == 'seconds':
                             value_float = float(metric_value)
                             formatted_value = value_float
@@ -613,6 +679,7 @@ class PrometheusClient:
         metric_unit = self._get_metric_unit_label(metric_type)
         
         # For CPU metrics (seconds), the readable value is shown as percentage
+        # For network metrics (bytes_per_second), readable value is human-readable throughput
         readable_unit = "%" if metric_type == 'seconds' else "Human Readable"
         
         if len(results_data) > 1:
@@ -667,10 +734,11 @@ class PrometheusClient:
                                 # Convert to percentage for CPU usage
                                 display_value = raw_value * 100
                             elif metric_type == 'cpu_cores':
-                                # Keep cores as-is but could convert to millicores if needed
                                 display_value = raw_value
+                            elif metric_type == 'bytes_per_second':
+                                # Convert to MB/s for readability
+                                display_value = raw_value / (1024**2)
                             else:
-                                # Keep raw value for other metric types
                                 display_value = raw_value
                                 
                             values.append(display_value)
@@ -706,6 +774,8 @@ class PrometheusClient:
                 ylabel = 'CPU Usage (%)'
             elif metric_type == 'cpu_cores':
                 ylabel = 'CPU Usage (Cores)'
+            elif metric_type == 'bytes_per_second':
+                ylabel = 'Network Receive (MB/s)'
             else:
                 ylabel = f'Value ({self._get_metric_unit_label(metric_type)})'
             
@@ -745,6 +815,10 @@ class PrometheusClient:
                 avg_formatted = f"{avg_usage:.3f} cores"
                 min_formatted = f"{min_usage:.3f} cores"
                 max_formatted = f"{max_usage:.3f} cores"
+            elif metric_type == 'bytes_per_second':
+                avg_formatted = f"{avg_usage:.2f} MB/s"
+                min_formatted = f"{min_usage:.2f} MB/s"
+                max_formatted = f"{max_usage:.2f} MB/s"
             else:
                 avg_formatted = self.format_metric_value(avg_usage, metric_type)
                 min_formatted = self.format_metric_value(min_usage, metric_type)

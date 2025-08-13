@@ -48,8 +48,15 @@ def show_help():
     print()
     
     print("📅 --date DATE_TIME (Optional)")
-    print("   Description: Specific date and time to analyze bucket usage for next 24 hours")
-    print("   Purpose:     Analyzes 'observability' bucket consumption during 24-hour period")
+    print("   Description: Specific date and time to analyze metrics on this date")
+    print("   Purpose:     Have in mind that the process will calculate averages in different ranges")
+    print("                For this date there will be created 3 ranges, or three days")
+    print("                The different calculations use functions with ranges like [24h] or [1h] but this is applied")
+    print("                to the previous hours of the first data of every range")
+    print("                Very briefly, if use Monday as your date, it will not gives you the averages of consumption")
+    print("                FOR Monday. It gives you the averages of consumption AT Monday")
+    print("                When this is extended to ranges of 3 days: if you use Monday, it will give you a range with the")
+    print("                averages of consumption AT Monday TO Wednesday. But it does not include data of Wednesday")
     print("   Format:      DD/MM/YYYY HH:MM:SS")
     print("   Example:     --date '15/01/2024 14:30:00'")
     print()
@@ -158,6 +165,7 @@ def observability_impact_analysis(client, date_str):
             bucket_usage_results_with_labels = []
             cpu_usage_results_with_labels = []
             memory_usage_results_with_labels = []
+            traffic_received_results_with_labels = []
 
             first_range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -165,25 +173,39 @@ def observability_impact_analysis(client, date_str):
             print(f"📈 Calculating dailyaverage consumption for 3 days from {first_range_start}")
             print("="*80)
                         
+            # Create a local copy of date_str for iteration to avoid modifying the parameter
+            current_date = date_str
+            
             for i in range(3):
-                range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
-                range_end = date_str + timedelta(hours=23.99)
+                range_start = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+                # Prometheus aligns the step interval with the start and end times. 
+                # Your query range is inclusive of both the start and end timestamps, leading to two evaluation points.
+                # fix: To get only one data point, you need to make the time range slightly less than a full step away 
+                # from the end time. The simplest fix is to make the end time one second before the next step.
+                range_end = current_date + timedelta(hours=23.99)
                 range_end_rfc = range_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
                 # Perform different usage analysis
-                bucket_usage_result = client.get_bucket_usage_for_date_range("observability", range_start, range_end_rfc, 24)
-                cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-observability", range_start, range_end_rfc, 24)
-                memory_usage_result = client.get_memory_usage_for_date_range("open-cluster-management-observability", range_start, range_end_rfc, 24)
+                # we dont really need a range or an end_date, we just need to get the data for the previous 24 hours
+                # to get only one data point.
+                # this data point is the averate on that moment of the day, in the previous 24 hours.
+                # here the step is meaningless, because the next step will be always out of the time frame
+                # because we want to force to have only one data point.
+                bucket_usage_result = client.get_bucket_usage_for_date_range("observability", range_start, range_start, step=24, range=24)
+                cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
+                memory_usage_result = client.get_memory_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
+                traffic_received_result = client.get_network_receive_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
                 
                 # Create time range label
-                time_range_label = f"Day {i+1}: {range_start} to {range_end_rfc}"
+                time_range_label = f"Data status at day {i+1}: {range_start}"
                                 
                 bucket_usage_results_with_labels.append((bucket_usage_result, time_range_label))
                 cpu_usage_results_with_labels.append((cpu_usage_result, time_range_label))
                 memory_usage_results_with_labels.append((memory_usage_result, time_range_label))
+                traffic_received_results_with_labels.append((traffic_received_result, time_range_label))
 
-                # switch to the next day
-                date_str = date_str + timedelta(hours=24)
+                # switch to the next day 
+                current_date = current_date + timedelta(hours=24)
             last_range_end = range_end_rfc
 
             print(f"📈 Display daily average observability bucket size for 3 days from {first_range_start} to {last_range_end}")
@@ -214,6 +236,15 @@ def observability_impact_analysis(client, date_str):
                 "bytes"
             )
 
+            print()
+            print(f"📈 Display daily average traffic received per secondfor 3 days from {first_range_start} to {last_range_end}")
+            client.display_metric_usage_date_range_results(
+                traffic_received_results_with_labels, 
+                "observability-traffic-received", 
+                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                "bytes_per_second"
+            )
+
             # Add hourly average consumption query for the entire period
             print("\n" + "="*80)
             print(f"📈 Calculating hourly average consumption from {first_range_start} to {last_range_end}")
@@ -222,6 +253,7 @@ def observability_impact_analysis(client, date_str):
             bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1, 1)
             cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
+            traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
 
             print(f"📈 Display houly observability bucket size for 3 days from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", first_range_start, last_range_end, "bytes")
@@ -233,6 +265,10 @@ def observability_impact_analysis(client, date_str):
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes")
+
+            print()
+            print(f"📈 Display hourly traffic received per second for 3 days from {first_range_start} to {last_range_end}")
+            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second")
 
         else:
             print(f"Analyzing metrics usage for last 24 hours")
