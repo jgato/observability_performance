@@ -86,60 +86,6 @@ class PrometheusClient:
             raise Exception(f"Failed to execute query: {e}")
 
     
-    def get_bucket_average_usage(self, bucket_name: str, hours: int) -> Dict[str, Any]:
-        """
-        Get the average usage of a storage bucket over a specified number of hours.
-        Uses NooBaa bucket usage metrics from OpenShift Data Foundation.
-        
-        Args:
-            bucket_name: Name of the storage bucket
-            hours: Number of hours to calculate the average (must be > 0)
-            
-        Returns:
-            Query result with average bucket usage metrics
-            
-        Raises:
-            ValueError: If hours is <= 0 or bucket_name is empty
-        """
-        if not bucket_name or not bucket_name.strip():
-            raise ValueError("Bucket name cannot be empty")
-        
-        if hours <= 0:
-            raise ValueError("Hours must be a positive integer")
-        
-        # Clean bucket name for PromQL query
-        bucket_name = bucket_name.strip()
-        
-        # Use NooBaa bucket usage metric
-        query = f'avg_over_time(NooBaa_bucket_used_bytes{{bucket_name="{bucket_name}"}}[{hours}h])'
-        try:
-            result = self.run_custom_query(query)
-            
-            # Check if we got data
-            if result['data']['result']:
-                return result
-            else:
-                # Return empty result with helpful error message
-                return {
-                    'status': 'success',
-                    'data': {
-                        'resultType': 'vector',
-                        'result': []
-                    },
-                    'error_info': {
-                        'message': f'No bucket usage data found for bucket "{bucket_name}"',
-                        'suggestions': [
-                            'Verify the bucket name is correct',
-                            'Check if the bucket exists in NooBaa/OpenShift Data Foundation',
-                            'Ensure bucket monitoring is enabled',
-                            'Verify you have access to the bucket metrics'
-                        ],
-                        'query_used': query
-                    }
-                }
-        except Exception as e:
-            raise Exception(f"Failed to query bucket usage: {e}")
-    
     def get_bucket_usage_for_date_range(self, bucket_name: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
         """
         Get bucket usage between two specific dates using range queries.
@@ -503,78 +449,6 @@ class PrometheusClient:
             'generic': 'Value'
         }
         return unit_labels.get(metric_type, 'Value')
-    
-    def display_bucket_usage_results(self, result: Dict[str, Any], bucket_name: str, hours: int):
-        """
-        Display bucket usage results in a table format.
-        
-        Args:
-            result: Query result from get_bucket_average_usage
-            bucket_name: Name of the bucket
-            hours: Number of hours for the average
-        """
-        print(f"📊 Bucket Usage Report for '{bucket_name}' (Average over {hours} hours)")
-        print("=" * 60)
-        
-        if result['status'] != 'success':
-            print("❌ Query failed:", result.get('error', 'Unknown error'))
-            return
-        
-        data = result['data']['result']
-        
-        if not data:
-            if 'error_info' in result:
-                print(f"❌ {result['error_info']['message']}")
-                print("\n💡 Suggestions:")
-                for suggestion in result['error_info']['suggestions']:
-                    print(f"   • {suggestion}")
-            else:
-                print("No usage data found for this bucket")
-            return
-        
-        print(f"✅ Found {len(data)} usage metric(s)")
-        print()
-        
-        # Prepare table data
-        headers = ["Bucket Name", "Metric", "Usage (Bytes)", "Usage (Human Readable)", "Timestamp"]
-        rows = []
-        
-        for metric in data:
-            metric_info = metric.get('metric', {})
-            value = metric.get('value', [None, '0'])
-            timestamp = value[0] if len(value) > 1 else 'N/A'
-            bytes_value = value[1] if len(value) > 1 else value[0] if value else '0'
-            
-            try:
-                bytes_float = float(bytes_value)
-                readable_size = self.format_bytes(bytes_float)
-                formatted_bytes = f"{bytes_float:,.0f}"
-            except (ValueError, TypeError):
-                readable_size = bytes_value
-                formatted_bytes = bytes_value
-            
-            # Format timestamp if available
-            if timestamp != 'N/A' and timestamp:
-                try:
-                    from datetime import datetime
-                    formatted_timestamp = datetime.fromtimestamp(float(timestamp)).strftime('%Y-%m-%d %H:%M:%S')
-                except:
-                    formatted_timestamp = str(timestamp)
-            else:
-                formatted_timestamp = 'N/A'
-            
-            row = [
-                metric_info.get('bucket_name', bucket_name),
-                metric_info.get('__name__', 'NooBaa_bucket_used_bytes'),
-                formatted_bytes,
-                readable_size,
-                formatted_timestamp
-            ]
-            rows.append(row)
-        
-        # Display as table
-        print(tabulate(rows, headers=headers, tablefmt="grid"))
-        print()
     
     def display_metric_usage_date_range_results(self, results_data, metric_name: str, title: str = None, metric_type: str = 'bytes'):
         """

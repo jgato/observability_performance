@@ -19,11 +19,7 @@ This tool is designed to help assess the impact of different observability confi
 
 ## How It Works
 
-The tool connects to your OpenShift Prometheus interface and collects metrics over a **3-day period** starting from a specified date. This allows you to:
-
-1. **Day 1**: Baseline measurements with current configuration
-2. **Day 2**: Measurements after enabling/changing observability settings
-3. **Day 3**: Continued monitoring to observe stabilization patterns or new settings added
+The tool connects to your OpenShift Prometheus interface and collects metrics over a configurable multi-day period starting from a specified date. By default it analyzes 3 days, but you can change this via `--days`.
 
 Each day captures **24-hour average periods** and an extra of **hourly granularity** (when meaningful) for detailed analysis.
 
@@ -32,19 +28,19 @@ Each day captures **24-hour average periods** and an extra of **hourly granulari
 ### Basic Command Structure
 
 ```bash
-python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> [--date <DATE>] [--spoke]
+python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> --date "DD/MM/YYYY HH:MM:SS" [--days N] [--spoke]
 ```
 
 ### Required Parameters
 
 - `--token`: Bearer token for OpenShift Prometheus authentication
 - `--url`: Full URL to your OpenShift Prometheus server
+- `--date`: Starting date for analysis (format: DD/MM/YYYY HH:MM:SS)
 
 ### Optional Parameters
 
-- `--date`: Starting date for analysis (format: DD/MM/YYYY HH:MM:SS)
-  - If not specified, starts from 24 hours ago
-- `--spoke`: Enable spoke cluster metrics collection
+- `--days`: Number of days to analyze starting from `--date` (default: 3)
+- `--spoke`: Enable spoke cluster metrics collection (currently a placeholder)
 
 ## Configuration Modes
 
@@ -52,26 +48,39 @@ python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> [--date <DATE>] [--
 
 When run **without** the `--spoke` parameter, the tool collects hub cluster observability metrics:
 
-#### Metrics Collected
+#### Metrics Collected (Hub)
 
-**Storage Metrics:**
-- `NooBaa_bucket_used_bytes{bucket_name="observability"}` - Observability bucket usage over time
-- `container_cpu_usage_seconds_total{namespace="open-cluster-management-observability"}` - Observability NameSpace CPU consumption
+- **Storage (Bucket Size)**
+  - `NooBaa_bucket_used_bytes{bucket_name="observability"}`
+- **CPU Usage**
+  - `sum(rate(container_cpu_usage_seconds_total{namespace="open-cluster-management-observability"}[24h]))`
+- **Memory Usage**
+  - `sum(avg_over_time(container_memory_usage_bytes{namespace="open-cluster-management-observability", container!=""}[24h]))`
+- **Network Receive Throughput**
+  - `sum(rate(container_network_receive_bytes_total{namespace="open-cluster-management-observability", pod!="", interface!="lo"}[24h]))`
 
 #### Analysis Provided
 
-1. **Daily Usage Tables**: 24-hour consumption data for each of the 3 days
-2. **Hourly Trend Analysis**: Complete hourly breakdown across the entire 3-day period
-4. **Visual Graphs**: PNG charts showing consumption trends (saved to `results/` directory)
+1. **Daily Usage Tables**: 24-hour consumption snapshot per day across N days
+2. **Hourly Trend Analysis**: Hourly breakdown for the full analysis window
+3. **Visual Graphs**: PNG charts saved to `results/` with metric and time range in the filename
 
 #### Example Hub Usage
 
 ```bash
-# Start analysis from a specific date
-python main.py --token sha256~abc123... --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com --date "15/01/2024 14:30:00"
+# Analyze 3 days starting from a specific date
+python main.py \
+  --token sha256~abc123... \
+  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
+  --date "15/01/2024 14:30:00" \
+  --days 3
 
-# Use default date (24 hours ago)
-python main.py --token sha256~abc123... --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com
+# Analyze 5 days starting from a specific date
+python main.py \
+  --token sha256~abc123... \
+  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
+  --date "15/01/2024 14:30:00" \
+  --days 5
 ```
 
 ### Spoke Cluster Analysis

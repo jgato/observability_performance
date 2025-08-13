@@ -47,10 +47,10 @@ def show_help():
     print("   Example:     --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com")
     print()
     
-    print("📅 --date DATE_TIME (Optional)")
-    print("   Description: Specific date and time to analyze metrics on this date")
+    print("📅 --date DATE_TIME (Required)")
+    print("   Description: Specific date and time to analyze metrics starting from this date")
     print("   Purpose:     Have in mind that the process will calculate averages in different ranges")
-    print("                For this date there will be created 3 ranges, or three days")
+    print("                For this date there will be created N ranges (days), controlled by --days (default: 3)")
     print("                The different calculations use functions with ranges like [24h] or [1h] but this is applied")
     print("                to the previous hours of the first data of every range")
     print("                Very briefly, if use Monday as your date, it will not gives you the averages of consumption")
@@ -147,7 +147,7 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             metric_type=metric_type
         )
 
-def observability_impact_analysis(client, date_str):
+def observability_impact_analysis(client, date_str, days):
     """
     Perform observability impact analysis for the 'observability' bucket
     using the provided date for 24-hour usage analysis.
@@ -170,13 +170,13 @@ def observability_impact_analysis(client, date_str):
             first_range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             print("\n" + "="*80)
-            print(f"📈 Calculating dailyaverage consumption for 3 days from {first_range_start}")
+            print(f"📈 Calculating daily average consumption for {days} days from {first_range_start}")
             print("="*80)
                         
             # Create a local copy of date_str for iteration to avoid modifying the parameter
             current_date = date_str
             
-            for i in range(3):
+            for i in range(days):
                 range_start = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
                 # Prometheus aligns the step interval with the start and end times. 
                 # Your query range is inclusive of both the start and end timestamps, leading to two evaluation points.
@@ -208,12 +208,12 @@ def observability_impact_analysis(client, date_str):
                 current_date = current_date + timedelta(hours=24)
             last_range_end = range_end_rfc
 
-            print(f"📈 Display daily average observability bucket size for 3 days from {first_range_start} to {last_range_end}")
+            print(f"📈 Display daily average observability bucket size for {days} days from {first_range_start} to {last_range_end}")
 
             client.display_metric_usage_date_range_results(
                 bucket_usage_results_with_labels, 
                 "observability-bucket-size", 
-                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                f"📊 Observability Impact Analysis ({days} days: {first_range_start} to {last_range_end})",
                 "bytes"
             )
             
@@ -222,7 +222,7 @@ def observability_impact_analysis(client, date_str):
             client.display_metric_usage_date_range_results(
                 cpu_usage_results_with_labels, 
                 "observability-cpu-consumption", 
-                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                f"📊 Observability Impact Analysis ({days} days: {first_range_start} to {last_range_end})",
                 "seconds"
             )
             print(f"📈 * % CPU Consumption (ex: 17% means 17% of one core, 100% means one full core, 200% means 2 cores")
@@ -232,7 +232,7 @@ def observability_impact_analysis(client, date_str):
             client.display_metric_usage_date_range_results(
                 memory_usage_results_with_labels, 
                 "observability-memory-consumption", 
-                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                f"📊 Observability Impact Analysis ({days} days: {first_range_start} to {last_range_end})",
                 "bytes"
             )
 
@@ -241,7 +241,7 @@ def observability_impact_analysis(client, date_str):
             client.display_metric_usage_date_range_results(
                 traffic_received_results_with_labels, 
                 "observability-traffic-received", 
-                f"📊 3-Day Observability Impact Analysis (starting from {first_range_start} to {last_range_end})",
+                f"📊 Observability Impact Analysis ({days} days: {first_range_start} to {last_range_end})",
                 "bytes_per_second"
             )
 
@@ -270,13 +270,6 @@ def observability_impact_analysis(client, date_str):
             print(f"📈 Display hourly traffic received per second for 3 days from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second")
 
-        else:
-            print(f"Analyzing metrics usage for last 24 hours")
-            print("- Use --date 'DD/MM/YYYY HH:MM:SS' for 24-hour bucket usage analysis after the date")
-
-            bucket_result = client.get_bucket_average_usage("observability", 24)
-            client.display_bucket_usage_results(bucket_result, "observability", 24)
-            
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
 
@@ -308,8 +301,15 @@ def main():
     
     parser.add_argument(
         "--date",
-        required=False,  # We'll handle this manually to show custom help
-        help="Date to calculate bucket usage for next 24 hours (format: DD/MM/YYYY HH:MM:SS)"
+        required=True,
+        help="Start date for analysis (format: DD/MM/YYYY HH:MM:SS)"
+    )
+
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=3,
+        help="Number of days to analyze starting from --date (default: 3)"
     )
     
     parser.add_argument(
@@ -386,16 +386,14 @@ def main():
         
         print("🎉 Prometheus client is ready for use!")
         
-        # Run observability impact analysis with the provided date (if any)
-        if args.date:
-            # Parse the date and calculate 24-hour range
-            from datetime import datetime, timedelta
-            
-            # Parse DD/MM/YYYY HH:MM:SS format
-            start_datetime = datetime.strptime(args.date, "%d/%m/%Y %H:%M:%S")
+        # Parse the date (required)
+        from datetime import datetime, timedelta
+        start_datetime = datetime.strptime(args.date, "%d/%m/%Y %H:%M:%S")
 
-        else:
-            start_datetime = None
+        # Validate days
+        if args.days <= 0:
+            print("❌ Error: --days must be a positive integer")
+            sys.exit(1)
 
                 
         # Check for spoke parameter
@@ -406,7 +404,7 @@ def main():
             sys.exit(0)
         else:
         # Metrics for the hub cluster
-            observability_impact_analysis(client, start_datetime)
+            observability_impact_analysis(client, start_datetime, args.days)
             print("\n🎉 Observability impact analysis completed!")
 
 
