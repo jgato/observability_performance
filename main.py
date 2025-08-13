@@ -126,7 +126,7 @@ def show_help():
     print("=" * 70)
 
 
-def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type):
+def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type, prefix=""): 
     """
     Display hourly table results and export graph if successful
     """
@@ -144,10 +144,11 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             metric_name,
             first_range_start,
             last_range_end,
-            metric_type=metric_type
+            metric_type=metric_type,
+            prefix=prefix
         )
 
-def observability_impact_analysis(client, date_str, days):
+def observability_impact_analysis(client, date_str, days, prefix=""): 
     """
     Perform observability impact analysis for the 'observability' bucket
     using the provided date for 24-hour usage analysis.
@@ -178,12 +179,6 @@ def observability_impact_analysis(client, date_str, days):
             
             for i in range(days):
                 range_start = current_date.strftime("%Y-%m-%dT%H:%M:%SZ")
-                # Prometheus aligns the step interval with the start and end times. 
-                # Your query range is inclusive of both the start and end timestamps, leading to two evaluation points.
-                # fix: To get only one data point, you need to make the time range slightly less than a full step away 
-                # from the end time. The simplest fix is to make the end time one second before the next step.
-                range_end = current_date + timedelta(hours=23.99)
-                range_end_rfc = range_end.strftime("%Y-%m-%dT%H:%M:%SZ")
 
                 # Perform different usage analysis
                 # we dont really need a range or an end_date, we just need to get the data for the previous 24 hours
@@ -206,7 +201,9 @@ def observability_impact_analysis(client, date_str, days):
 
                 # switch to the next day 
                 current_date = current_date + timedelta(hours=24)
-            last_range_end = range_end_rfc
+            # Compute last_range_end from the starting date and number of days
+            last_end_dt = date_str + timedelta(hours=24*days - 0.01)  # slightly before exact boundary
+            last_range_end = last_end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             print(f"📈 Display daily average observability bucket size for {days} days from {first_range_start} to {last_range_end}")
 
@@ -256,19 +253,19 @@ def observability_impact_analysis(client, date_str, days):
             traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
 
             print(f"📈 Display houly observability bucket size for 3 days from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", first_range_start, last_range_end, "bytes")
+            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", first_range_start, last_range_end, "bytes", prefix="[HUB]")
             
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", first_range_start, last_range_end, "seconds")  
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", first_range_start, last_range_end, "seconds", prefix="[HUB]")  
             
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes")
+            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes", prefix="[HUB]")
 
             print()
             print(f"📈 Display hourly traffic received per second for 3 days from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second")
+            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix="[HUB]")
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
@@ -316,6 +313,13 @@ def main():
         "--spoke",
         action="store_true",
         help="Enable spoke cluster metrics analysis (feature under development)"
+    )
+
+    parser.add_argument(
+        "--prefix",
+        required=False,
+        default="",
+        help="Optional prefix to prepend to output filenames (e.g., experiment tag)"
     )
     
     try:
@@ -404,7 +408,7 @@ def main():
             sys.exit(0)
         else:
         # Metrics for the hub cluster
-            observability_impact_analysis(client, start_datetime, args.days)
+            observability_impact_analysis(client, start_datetime, args.days, args.prefix)
             print("\n🎉 Observability impact analysis completed!")
 
 

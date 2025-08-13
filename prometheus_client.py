@@ -571,7 +571,7 @@ class PrometheusClient:
  
 
     def create_hourly_usage_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                                 start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes'):
+                                 start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = ""): 
         """
         Create a graphical visualization of hourly metric usage data.
         
@@ -749,7 +749,9 @@ class PrometheusClient:
             # Create filename with metric name and full range
             start_date = start_time[:19].replace(':', '-').replace('T', '_')
             end_date = end_time[:19].replace(':', '-').replace('T', '_')
-            filename = f"{metric_name}_{start_date}_to_{end_date}.png"
+            cleaned_prefix = (prefix or "").strip().replace(" ", "_").replace("/", "-").replace("\\", "-")
+            prefix_part = f"{cleaned_prefix}_" if cleaned_prefix else ""
+            filename = f"{prefix_part}{metric_name}_{start_date}_to_{end_date}.png"
             filepath = os.path.join(results_dir, filename)
             plt.savefig(filepath, dpi=300, bbox_inches='tight', 
                        facecolor='white', edgecolor='none')
@@ -800,7 +802,7 @@ class PrometheusClient:
             return False
     
     def export_hourly_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                           start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes'):
+                           start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = ""):
         """
         Export hourly analysis results to a graphical file.
         Generic function that can be used for any hourly metrics analysis.
@@ -824,7 +826,8 @@ class PrometheusClient:
                 start_time, 
                 end_time,
                 output_dir,
-                metric_type
+                metric_type,
+                prefix
             )
             if graph_file:
                 return graph_file
