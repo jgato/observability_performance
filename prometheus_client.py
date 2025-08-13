@@ -17,7 +17,7 @@ Prometheus Client for OpenShift monitoring queries.
 """
 
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import requests
 from urllib.parse import urljoin
@@ -659,6 +659,36 @@ class PrometheusClient:
             plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
             plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=6))  # Show every 6 hours
             plt.xticks(rotation=45)
+            
+            # Draw vertical lines at day boundaries (every 24h) with robust parsing and visible style
+            try:
+                ax = plt.gca()
+                # Try parse ISO with 'T', else try space separator
+                try:
+                    start_dt = datetime.strptime(start_time[:19], '%Y-%m-%dT%H:%M:%S')
+                    end_dt = datetime.strptime(end_time[:19], '%Y-%m-%dT%H:%M:%S')
+                except Exception:
+                    start_dt = datetime.strptime(start_time[:19], '%Y-%m-%d %H:%M:%S')
+                    end_dt = datetime.strptime(end_time[:19], '%Y-%m-%d %H:%M:%S')
+                current = start_dt + timedelta(hours=24)
+                while current < end_dt:
+                    ax.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                    current += timedelta(hours=24)
+            except Exception:
+                # As a fallback, use first timestamp to infer day boundaries
+                if timestamps:
+                    try:
+                        first_ts = timestamps[0]
+                        last_ts = timestamps[-1]
+                        # Round first_ts to next day boundary
+                        current = first_ts.replace(hour=0, minute=0, second=0, microsecond=0)
+                        if current <= first_ts:
+                            current += timedelta(days=1)
+                        while current < last_ts:
+                            plt.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                            current += timedelta(days=1)
+                    except Exception:
+                        pass
             
             # Set Y-axis to start from 0 for better scale perspective
             plt.ylim(bottom=0)
