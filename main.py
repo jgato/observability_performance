@@ -165,7 +165,7 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             # Collect results from the three iterations
             cpu_usage_results_with_labels = []
             memory_usage_results_with_labels = []
-
+            traffic_sent_results_with_labels = []
             first_range_start = date_str.strftime("%Y-%m-%dT%H:%M:%SZ")
 
             print("\n" + "="*80)
@@ -186,13 +186,14 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
                 # because we want to force to have only one data point.
                 cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
                 memory_usage_result = client.get_memory_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
-                
+                traffic_sent_result = client.get_network_transmit_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
+
                 # Create time range label
                 time_range_label = f"Data status at day {i+1}: {range_start}"
                                 
                 cpu_usage_results_with_labels.append((cpu_usage_result, time_range_label))
                 memory_usage_results_with_labels.append((memory_usage_result, time_range_label))
-                
+                traffic_sent_results_with_labels.append((traffic_sent_result, time_range_label))
                 # switch to the next day 
                 current_date = current_date + timedelta(hours=24)
             # Compute last_range_end from the starting date and number of days
@@ -221,12 +222,22 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             )
 
             # Add hourly average consumption query for the entire period
+            print()
+            print(f"📈 Display daily average traffic sent per second for 3 days from {first_range_start} to {last_range_end}")
+            client.display_metric_usage_date_range_results(
+                traffic_sent_results_with_labels, 
+                "observability-traffic-sent", 
+                f"📊 Observability Impact Analysis ({days} days: {first_range_start} to {last_range_end})",
+                "bytes_per_second"
+            )
+
             print("\n" + "="*80)
             print(f"📈 Calculating hourly average consumption from {first_range_start} to {last_range_end}")
             print("="*80)
             
             cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
+            traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
 
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {first_range_start} to {last_range_end}")
@@ -235,6 +246,10 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes", prefix)
+
+            print()
+            print(f"📈 Display hourly traffic sent per second for 3 days from {first_range_start} to {last_range_end}")
+            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", first_range_start, last_range_end, "bytes_per_second", prefix)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
