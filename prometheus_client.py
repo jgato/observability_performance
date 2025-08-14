@@ -693,7 +693,7 @@ class PrometheusClient:
                     color='#1f77b4', markerfacecolor='#ff7f0e', markeredgecolor='#1f77b4')
             
             # Customize the plot
-            plt.title(f'📊 Hourly Usage Trend - {metric_name} \n'
+            plt.title(f'📊 {prefix} Hourly Usage Trend - {metric_name} \n'
                      f'📅 {start_time} to {end_time}', fontsize=16, fontweight='bold', pad=20)
             
             plt.xlabel('Time', fontsize=12, fontweight='bold')
