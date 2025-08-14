@@ -184,9 +184,9 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
                 # this data point is the averate on that moment of the day, in the previous 24 hours.
                 # here the step is meaningless, because the next step will be always out of the time frame
                 # because we want to force to have only one data point.
-                cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
-                memory_usage_result = client.get_memory_usage_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
-                traffic_sent_result = client.get_network_transmit_for_date_range("open-cluster-management-observability", range_start, range_start, step=24, range=24)
+                cpu_usage_result = client.get_cpu_usage_for_date_range("open-cluster-management-addon-observability", range_start, range_start, step=24, range=24)
+                memory_usage_result = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", range_start, range_start, step=24, range=24)
+                traffic_sent_result = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", range_start, range_start, step=24, range=24)
 
                 # Create time range label
                 time_range_label = f"Data status at day {i+1}: {range_start}"
@@ -235,9 +235,9 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             print(f"📈 Calculating hourly average consumption from {first_range_start} to {last_range_end}")
             print("="*80)
             
-            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
-            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
-            traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
+            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
+            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
+            traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
 
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {first_range_start} to {last_range_end}")
