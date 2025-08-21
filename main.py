@@ -126,9 +126,12 @@ def show_help():
     print("=" * 70)
 
 
-def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type, prefix=""): 
+def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type, prefix="", day_labels=None): 
     """
     Display hourly table results and export graph if successful
+    
+    Args:
+        day_labels: Optional list of custom labels for each day boundary (e.g., ['Baseline', 'Config A', 'Config B'])
     """
     table_success = client.display_hourly_table_results(
         results_data,
@@ -145,7 +148,8 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             first_range_start,
             last_range_end,
             metric_type=metric_type,
-            prefix=prefix
+            prefix=prefix,
+            day_labels=day_labels
         )
 
 def observability_impact_analysis_spoke(client, date_str, days, prefix=""): 
@@ -392,26 +396,28 @@ def observability_impact_analysis(client, date_str, days, prefix=""):
             # For the last_range_end we have to do the opposite or we calculate one less day         
             last_end_dt = date_str + timedelta(hours=24*(days-1))
             hourly_end_time = last_end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-
+    
             bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", hourly_start_time, hourly_end_time, 1, 1)
             cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", hourly_start_time, hourly_end_time, 1, 1)
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", hourly_start_time, hourly_end_time, 1, 1)
             traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", hourly_start_time, hourly_end_time, 1, 1)
 
+            day_labels = ["", "extra-metrics", "new-alerts"]
+
             print(f"📈 Display houly observability bucket size for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", hourly_start_time, hourly_end_time, "bytes", prefix)
+            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
             
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix)  
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, day_labels)  
             
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix)
+            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
 
             print()
             print(f"📈 Display hourly traffic received per second for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", hourly_start_time, hourly_end_time, "bytes_per_second", prefix)
+            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, day_labels)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")

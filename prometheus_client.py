@@ -630,7 +630,7 @@ class PrometheusClient:
  
 
     def create_hourly_usage_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                                 start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = ""): 
+                                 start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = "", day_labels: list = None): 
         """
         Create a graphical visualization of hourly metric usage data.
         
@@ -641,6 +641,8 @@ class PrometheusClient:
             end_time: End time of the analysis
             output_dir: Directory to save the graph (default: current directory)
             metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
+            prefix: Prefix for output filename
+            day_labels: Optional list of custom labels for each day boundary (e.g., ['Baseline', 'Config A', 'Config B'])
         """
         try:
             # Extract timestamps and values from the results
@@ -730,9 +732,19 @@ class PrometheusClient:
                     start_dt = datetime.strptime(start_time[:19], '%Y-%m-%d %H:%M:%S')
                     end_dt = datetime.strptime(end_time[:19], '%Y-%m-%d %H:%M:%S')
                 current = start_dt + timedelta(hours=24)
+                day_count = 1
                 while current < end_dt:
                     ax.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                    # Add day label at the top of the line
+                    if day_labels and day_count < len(day_labels):
+                        label_text = day_labels[day_count]
+                    else:
+                        label_text = f'Day {day_count + 1}'
+                    ax.text(current, ax.get_ylim()[1] * 0.95, label_text, 
+                           rotation=90, verticalalignment='top', horizontalalignment='right',
+                           color='#d62728', fontweight='bold', fontsize=9, alpha=0.9)
                     current += timedelta(hours=24)
+                    day_count += 1
             except Exception:
                 # As a fallback, use first timestamp to infer day boundaries
                 if timestamps:
@@ -743,9 +755,20 @@ class PrometheusClient:
                         current = first_ts.replace(hour=0, minute=0, second=0, microsecond=0)
                         if current <= first_ts:
                             current += timedelta(days=1)
+                        day_count = 1
+                        ax = plt.gca()
                         while current < last_ts:
                             plt.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                            # Add day label at the top of the line
+                            if day_labels and day_count < len(day_labels):
+                                label_text = day_labels[day_count]
+                            else:
+                                label_text = f'Day {day_count + 1}'
+                            ax.text(current, ax.get_ylim()[1] * 0.95, label_text, 
+                                   rotation=90, verticalalignment='top', horizontalalignment='right',
+                                   color='#d62728', fontweight='bold', fontsize=9, alpha=0.9)
                             current += timedelta(days=1)
+                            day_count += 1
                     except Exception:
                         pass
             
@@ -861,7 +884,7 @@ class PrometheusClient:
             return False
     
     def export_hourly_graph(self, results_data: Dict[str, Any], metric_name: str, 
-                           start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = ""):
+                           start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = "", day_labels: list = None):
         """
         Export hourly analysis results to a graphical file.
         Generic function that can be used for any hourly metrics analysis.
@@ -873,6 +896,8 @@ class PrometheusClient:
             end_time: End time of the analysis
             output_dir: Directory to save the graph (default: current directory)
             metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
+            prefix: Prefix for output filename
+            day_labels: Optional list of custom labels for each day boundary (e.g., ['Baseline', 'Config A', 'Config B'])
         
         Returns:
             str or None: Path to the generated graph file, or None if failed
@@ -886,7 +911,8 @@ class PrometheusClient:
                 end_time,
                 output_dir,
                 metric_type,
-                prefix
+                prefix,
+                day_labels
             )
             if graph_file:
                 return graph_file
