@@ -207,8 +207,6 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             last_end_dt = date_str + timedelta(hours=24*days)  # slightly before exact boundary
             last_range_end = last_end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
-            print(f"📈 Display daily average observability bucket size for {days} days from {first_range_start} to {last_range_end}")
-            
             print()
             print(f"📈 Display daily average cpu per second consumed for 3 days from {first_range_start} to {last_range_end}")
             client.display_metric_usage_date_range_results(
