@@ -25,6 +25,7 @@ from tabulate import tabulate
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import os
+import csv
 
 
 class PrometheusClient:
@@ -921,4 +922,95 @@ class PrometheusClient:
                 return None
         else:
             print(f"❌ Cannot export graph - no valid data available")
+            return None
+
+    def export_hourly_csv(self, results_data: Dict[str, Any], metric_name: str, 
+                         start_time: str, end_time: str, output_dir: str = ".", metric_type: str = 'bytes', prefix: str = ""):
+        """
+        Export hourly analysis results to a CSV file.
+        Generic function that can be used for any hourly metrics analysis.
+        
+        Args:
+            results_data: Prometheus query result data
+            metric_name: Name of the metric
+            start_time: Start time of the analysis
+            end_time: End time of the analysis
+            output_dir: Directory to save the CSV (default: current directory)
+            metric_type: Type of metric for proper formatting ('bytes', 'cpu_cores', 'seconds', 'percentage', 'count', 'generic')
+            prefix: Prefix for output filename
+        
+        Returns:
+            str or None: Path to the generated CSV file, or None if failed
+        """
+        if not (results_data.get('status') == 'success' and results_data.get('data', {}).get('result')):
+            print(f"❌ Cannot export CSV - no valid data available")
+            return None
+            
+        try:
+            print(f"\n📊 Exporting CSV data...")
+            
+            # Create output directory if it doesn't exist
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # Generate filename following the same pattern as graphs
+            start_clean = start_time.replace(':', '-').replace('T', '_').replace('Z', '')
+            end_clean = end_time.replace(':', '-').replace('T', '_').replace('Z', '')
+            
+            if prefix:
+                csv_filename = f"{prefix}_{metric_name}_{start_clean}_to_{end_clean}.csv"
+            else:
+                csv_filename = f"{metric_name}_{start_clean}_to_{end_clean}.csv"
+                
+            csv_path = os.path.join(output_dir, csv_filename)
+            
+            # Extract data from Prometheus results
+            csv_data = []
+            metric_unit = self._get_metric_unit_label(metric_type)
+            
+            for series in results_data['data']['result']:
+                series_values = series.get('values', [])
+                for timestamp, metric_value in series_values:
+                    try:
+                        # Convert timestamp to datetime
+                        dt = datetime.fromtimestamp(float(timestamp))
+                        formatted_datetime = dt.strftime("%Y-%m-%d %H:%M:%S")
+                        
+                        # Get raw value
+                        raw_value = float(metric_value)
+                        
+                        # Format human-readable value
+                        human_readable = self.format_metric_value(raw_value, metric_type)
+                        
+                        csv_data.append({
+                            'timestamp': formatted_datetime,
+                            'metric_name': metric_name,
+                            f'value_{metric_unit.lower().replace(" ", "_").replace("/", "_per_")}': raw_value,
+                            'value_human_readable': human_readable
+                        })
+                        
+                    except (ValueError, KeyError) as e:
+                        print(f"⚠️  Warning: Skipping invalid data point: {e}")
+                        continue
+            
+            if not csv_data:
+                print(f"❌ No valid data points found for CSV export")
+                return None
+                
+            # Write CSV file
+            with open(csv_path, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['timestamp', 'metric_name', f'value_{metric_unit.lower().replace(" ", "_").replace("/", "_per_")}', 'value_human_readable']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                
+                # Write header
+                writer.writeheader()
+                
+                # Write data rows
+                writer.writerows(csv_data)
+            
+            print(f"✅ CSV data exported successfully: {csv_path}")
+            print(f"   📄 {len(csv_data)} data points exported")
+            return csv_path
+            
+        except Exception as e:
+            print(f"❌ Failed to export CSV: {str(e)}")
             return None 

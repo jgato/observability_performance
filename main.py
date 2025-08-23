@@ -128,7 +128,7 @@ def show_help():
 
 def show_hourly_analysis(client, results_data, metric_name, first_range_start, last_range_end, metric_type, prefix="", day_labels=None): 
     """
-    Display hourly table results and export graph if successful
+    Display hourly table results and export graph and CSV if successful
     
     Args:
         day_labels: Optional list of custom labels for each day boundary (e.g., ['Baseline', 'Config A', 'Config B'])
@@ -140,8 +140,9 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
         metric_type
     )
     
-    # Export hourly graph if table was successful
+    # Export hourly graph and CSV if table was successful
     if table_success:
+        # Export graph (function automatically uses results/ directory)
         graph_file = client.export_hourly_graph(
             results_data,
             metric_name,
@@ -150,6 +151,17 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             metric_type=metric_type,
             prefix=prefix,
             day_labels=day_labels
+        )
+        
+        # Export CSV data
+        csv_file = client.export_hourly_csv(
+            results_data,
+            metric_name,
+            first_range_start,
+            last_range_end,
+            output_dir="results",
+            metric_type=metric_type,
+            prefix=prefix
         )
 
 def observability_impact_analysis_spoke(client, date_str, days, prefix=""): 
