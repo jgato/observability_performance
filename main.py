@@ -262,17 +262,19 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", hourly_start_time, hourly_end_time, 1, 1)
             traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", hourly_start_time, hourly_end_time, 1, 1)
 
+            day_labels = ["", "extra-metrics", "new-alerts"]
+
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix)  
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, day_labels)  
             
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix)
+            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
 
             print()
             print(f"📈 Display hourly traffic sent per second for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", hourly_start_time, hourly_end_time, "bytes_per_second", prefix)
+            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, day_labels)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
