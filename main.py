@@ -68,6 +68,15 @@ def show_help():
     print("   Example:     --spoke")
     print()
     
+    print("🏷️  --day-labels (Optional)")
+    print("   Description: Custom labels for each day of analysis")
+    print("   Purpose:     Provide meaningful names for each day in the analysis period")
+    print("   Format:      Space-separated list of strings (one per day)")
+    print("   Requirements: Number of labels must match the --days parameter")
+    print("   Example:     --day-labels 'Baseline' 'Config A' 'Config B' (for 3 days)")
+    print("   Default:     If not provided, uses ['', 'extra-metrics', 'new-alerts']")
+    print()
+    
     print("HOW TO GET THESE VALUES:")
     print("-" * 50)
     print()
@@ -106,6 +115,14 @@ def show_help():
     print("  --token sha256~abcd1234efgh5678ijkl9012mnop3456qrst7890uvwx1234yz \\")
     print("  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \\")
     print("  --date '15/01/2024 14:30:00'")
+    print()
+    print("Observability impact analysis with custom day labels:")
+    print("python main.py \\")
+    print("  --token sha256~abcd1234efgh5678ijkl9012mnop3456qrst7890uvwx1234yz \\")
+    print("  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \\")
+    print("  --date '15/01/2024 14:30:00' \\")
+    print("  --days 3 \\")
+    print("  --day-labels 'Baseline' 'Heavy Load' 'Optimized'")
     print()
     
     print("TROUBLESHOOTING:")
@@ -164,7 +181,7 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             prefix=prefix
         )
 
-def observability_impact_analysis_spoke(client, date_str, days, prefix=""): 
+def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_labels=None): 
     """
     Perform observability impact analysis for the 'observability' bucket
     using the provided date for 24-hour usage analysis.
@@ -174,6 +191,7 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
         date_str: Date string in DD/MM/YYYY HH:MM:SS format
         days: Number of days to analyze
         prefix: Prefix to add to the output filenames   
+        day_labels: Optional list of labels for each day
 
     """
 
@@ -274,25 +292,26 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix=""):
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", hourly_start_time, hourly_end_time, 1, 1)
             traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", hourly_start_time, hourly_end_time, 1, 1)
 
-            day_labels = ["", "extra-metrics", "new-alerts"]
+            # Use provided day_labels or default if none provided
+            labels_to_use = day_labels if day_labels else ["", "extra-metrics", "new-alerts"]
 
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, day_labels)  
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, labels_to_use)  
             
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
+            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, labels_to_use)
 
             print()
             print(f"📈 Display hourly traffic sent per second for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, day_labels)
+            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, labels_to_use)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
 
 
-def observability_impact_analysis(client, date_str, days, prefix=""): 
+def observability_impact_analysis(client, date_str, days, prefix="", day_labels=None): 
     """
     Perform observability impact analysis for the 'observability' bucket
     using the provided date for 24-hour usage analysis.
@@ -302,6 +321,7 @@ def observability_impact_analysis(client, date_str, days, prefix=""):
         date_str: Date string in DD/MM/YYYY HH:MM:SS format
         days: Number of days to analyze
         prefix: Prefix to add to the output filenames       
+        day_labels: Optional list of labels for each day
     """
 
     # we will do an analysis on what happened the 24 hours before the date.
@@ -416,22 +436,23 @@ def observability_impact_analysis(client, date_str, days, prefix=""):
             memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", hourly_start_time, hourly_end_time, 1, 1)
             traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", hourly_start_time, hourly_end_time, 1, 1)
 
-            day_labels = ["", "extra-metrics", "new-alerts"]
+            # Use provided day_labels or default if none provided
+            labels_to_use = day_labels if day_labels else ["", "extra-metrics", "new-alerts"]
 
             print(f"📈 Display houly observability bucket size for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
+            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", hourly_start_time, hourly_end_time, "bytes", prefix, labels_to_use)
             
             print()
             print(f"📈 Display houly cpu consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, day_labels)  
+            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", hourly_start_time, hourly_end_time, "seconds", prefix, labels_to_use)  
             
             print()
             print(f"📈 Display hourly memory consumption for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, day_labels)
+            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", hourly_start_time, hourly_end_time, "bytes", prefix, labels_to_use)
 
             print()
             print(f"📈 Display hourly traffic received per second for 3 days from {hourly_start_time} to {hourly_end_time}")
-            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, day_labels)
+            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", hourly_start_time, hourly_end_time, "bytes_per_second", prefix, labels_to_use)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
@@ -480,6 +501,12 @@ def main():
         action="store_true",
         help="Enable spoke cluster metrics analysis (feature under development)"
     )
+    
+    parser.add_argument(
+        "--day-labels",
+        nargs='+',
+        help="Optional labels for each day (one label per day specified by --days). Example: --day-labels 'Baseline' 'Config A' 'Config B'"
+    )
 
     
     try:
@@ -515,12 +542,29 @@ def main():
             print("="*50)
             sys.exit(1)
         
+        # Parse the date (required)
+        from datetime import datetime, timedelta
+        start_datetime = datetime.strptime(args.date, "%d/%m/%Y %H:%M:%S")
+
+        # Validate days
+        if args.days <= 0:
+            print("❌ Error: --days must be a positive integer")
+            sys.exit(1)
+
+        # Validate day labels if provided
+        day_labels = None
+        if args.day_labels:
+            if len(args.day_labels) != args.days:
+                print(f"❌ Error: Number of day labels ({len(args.day_labels)}) must match number of days ({args.days})")
+                print(f"   Provided labels: {args.day_labels}")
+                sys.exit(1)
+            day_labels = args.day_labels
+        
         print("🚀 Initializing OpenShift Prometheus Query Tool...")
         print(f"   Target URL: {args.url}")
         print(f"   Token: {args.token[:20]}... (truncated)")
         print()
 
-        
         # Initialize Prometheus client
         client = PrometheusClient(args.url, args.token)
         
@@ -550,23 +594,13 @@ def main():
         
         print("🎉 Prometheus client is ready for use!")
         
-        # Parse the date (required)
-        from datetime import datetime, timedelta
-        start_datetime = datetime.strptime(args.date, "%d/%m/%Y %H:%M:%S")
-
-        # Validate days
-        if args.days <= 0:
-            print("❌ Error: --days must be a positive integer")
-            sys.exit(1)
-
-                
         # Check for spoke parameter
         if args.spoke:
-            observability_impact_analysis_spoke(client, start_datetime, args.days, "[SPOKE]")
+            observability_impact_analysis_spoke(client, start_datetime, args.days, "[SPOKE]", day_labels)
             print("\n🎉 Observability impact analysis completed!")
         else:
         # Metrics for the hub cluster
-            observability_impact_analysis(client, start_datetime, args.days, "[HUB]")
+            observability_impact_analysis(client, start_datetime, args.days, "[HUB]", day_labels)
             print("\n🎉 Observability impact analysis completed!")
 
 

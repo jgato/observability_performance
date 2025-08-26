@@ -734,6 +734,7 @@ class PrometheusClient:
                     end_dt = datetime.strptime(end_time[:19], '%Y-%m-%d %H:%M:%S')
                 current = start_dt + timedelta(hours=24)
                 day_count = 1
+                print ("day_labels: ", day_labels)
                 while current < end_dt:
                     ax.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
                     # Add day label at the top of the line
