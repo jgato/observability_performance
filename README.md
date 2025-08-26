@@ -28,7 +28,7 @@ Each day captures **24-hour average periods** and an extra of **hourly granulari
 ### Basic Command Structure
 
 ```bash
-python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> --date "DD/MM/YYYY HH:MM:SS" [--days N] [--spoke]
+python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> --date "DD/MM/YYYY HH:MM:SS" [--days N] [--spoke] [--day-labels LABEL1 LABEL2 ...]
 ```
 
 ### Required Parameters
@@ -40,7 +40,8 @@ python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> --date "DD/MM/YYYY 
 ### Optional Parameters
 
 - `--days`: Number of days to analyze starting from `--date` (default: 3)
-- `--spoke`: Enable spoke cluster metrics collection (currently a placeholder)
+- `--spoke`: Enable spoke cluster metrics collection
+- `--day-labels`: Custom labels for each day (space-separated list, one per day). Example: `--day-labels 'Baseline' 'Config A' 'Config B'`
 
 ## Configuration Modes
 
@@ -51,19 +52,20 @@ When run **without** the `--spoke` parameter, the tool collects hub cluster obse
 #### Metrics Collected (Hub)
 
 - **Storage (Bucket Size)**
-  - `NooBaa_bucket_used_bytes{bucket_name="observability"}`
+  - `NooBaa_bucket_used_bytes{bucket_name="observability"}` - S3 storage consumption
 - **CPU Usage**
-  - `sum(rate(container_cpu_usage_seconds_total{namespace="open-cluster-management-observability"}[24h]))`
+  - `sum(rate(container_cpu_usage_seconds_total{namespace="open-cluster-management-observability"}[range]))` - CPU cores consumed per second
 - **Memory Usage**
-  - `sum(avg_over_time(container_memory_usage_bytes{namespace="open-cluster-management-observability", container!=""}[24h]))`
-- **Network Receive Throughput**
-  - `sum(rate(container_network_receive_bytes_total{namespace="open-cluster-management-observability", pod!="", interface!="lo"}[24h]))`
+  - `sum(avg_over_time(container_memory_usage_bytes{namespace="open-cluster-management-observability", container!=""}[range]))` - Memory consumption in bytes
+- **Network Traffic Received**
+  - `sum(rate(container_network_receive_bytes_total{namespace="open-cluster-management-observability", pod!="", interface!="lo"}[range]))` - Inbound network traffic in bytes/second
 
 #### Analysis Provided
 
 1. **Daily Usage Tables**: 24-hour consumption snapshot per day across N days
 2. **Hourly Trend Analysis**: Hourly breakdown for the full analysis window
-3. **Visual Graphs**: PNG charts saved to `results/` with metric and time range in the filename
+3. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with metric and time range in the filename
+4. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with same naming convention as graphs)
 
 #### Example Hub Usage
 
@@ -81,32 +83,61 @@ python main.py \
   --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
   --date "15/01/2024 14:30:00" \
   --days 5
+
+# Analyze with custom day labels for configuration tracking
+python main.py \
+  --token sha256~abc123... \
+  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
+  --date "15/01/2024 14:30:00" \
+  --days 3 \
+  --day-labels 'Baseline' 'Extra Metrics' 'New Alerts'
 ```
 
 ### Spoke Cluster Analysis
 
-When run **with** the `--spoke` parameter, the tool is configured for spoke cluster metrics:
+When run **with** the `--spoke` parameter, the tool collects spoke cluster observability metrics:
 
-#### Current Status
+#### Metrics Collected (Spoke)
 
-```
-⚠️  There are no metrics collected for spokes yet
-💡 This feature is under development and will be available in future releases
-```
+- **CPU Usage**
+  - `sum(rate(container_cpu_usage_seconds_total{namespace="open-cluster-management-addon-observability"}[range]))` - CPU cores consumed per second by observability addon
+- **Memory Usage**
+  - `sum(avg_over_time(container_memory_usage_bytes{namespace="open-cluster-management-addon-observability", container!=""}[range]))` - Memory consumption in bytes by observability addon
+- **Network Traffic Sent**
+  - `sum(rate(container_network_transmit_bytes_total{namespace="open-cluster-management-addon-observability", pod!="", interface!="lo"}[range]))` - Outbound network traffic in bytes/second
 
-#### Planned Spoke Metrics
+#### Analysis Provided
 
-Future versions will collect:
-- Spoke cluster resource consumption
-- Agent performance metrics
-- Network traffic between hub and spokes
-- Spoke-specific observability overhead
+1. **Daily Usage Tables**: 24-hour consumption snapshot per day across N days for spoke observability addon
+2. **Hourly Trend Analysis**: Hourly breakdown for the full analysis window
+3. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with `[SPOKE]` prefix and metric/time range in filename
+4. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with `[SPOKE]` prefix)
+
+#### Key Differences from Hub Analysis
+
+- **Namespace**: Targets `open-cluster-management-addon-observability` (spoke) vs `open-cluster-management-observability` (hub)
+- **No Storage Metrics**: Spoke clusters don't have S3 bucket metrics (storage is on hub)
+- **Network Direction**: Measures traffic **sent** (to hub) vs traffic **received** (from spokes)
+- **Scope**: Focuses on observability addon resource consumption rather than full observability infrastructure
 
 #### Example Spoke Usage
 
 ```bash
-# Request spoke cluster analysis (not yet implemented)
-python main.py --token sha256~abc123... --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com --spoke
+# Analyze spoke cluster observability impact for 3 days
+python main.py \
+  --token sha256~abc123... \
+  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
+  --date "15/01/2024 14:30:00" \
+  --spoke
+
+# Analyze spoke with custom labels and extended period
+python main.py \
+  --token sha256~abc123... \
+  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
+  --date "15/01/2024 14:30:00" \
+  --days 5 \
+  --spoke \
+  --day-labels 'Baseline' 'Heavy Metrics' 'Optimized Config' 'Alert Changes' 'Final State'
 ```
 
 ## Getting Authentication Details
