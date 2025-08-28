@@ -732,6 +732,18 @@ class PrometheusClient:
                 except Exception:
                     start_dt = datetime.strptime(start_time[:19], '%Y-%m-%d %H:%M:%S')
                     end_dt = datetime.strptime(end_time[:19], '%Y-%m-%d %H:%M:%S')
+                
+                # Add vertical line at the starting time (Day 0)
+                ax.axvline(start_dt, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                # Add day 0 label at the top of the line
+                if day_labels and len(day_labels) > 0:
+                    day0_label = day_labels[0]
+                else:
+                    day0_label = 'Day 0'
+                ax.text(start_dt, ax.get_ylim()[1] * 0.95, day0_label, 
+                       rotation=90, verticalalignment='top', horizontalalignment='right',
+                       color='black', fontweight='bold', fontsize=12, alpha=0.9)
+                
                 current = start_dt + timedelta(hours=24)
                 day_count = 1
                 print ("day_labels: ", day_labels)
@@ -744,7 +756,7 @@ class PrometheusClient:
                         label_text = f'Day {day_count + 1}'
                     ax.text(current, ax.get_ylim()[1] * 0.95, label_text, 
                            rotation=90, verticalalignment='top', horizontalalignment='right',
-                           color='#d62728', fontweight='bold', fontsize=9, alpha=0.9)
+                           color='black', fontweight='bold', fontsize=12, alpha=0.9)
                     current += timedelta(hours=24)
                     day_count += 1
             except Exception:
@@ -753,12 +765,24 @@ class PrometheusClient:
                     try:
                         first_ts = timestamps[0]
                         last_ts = timestamps[-1]
+                        ax = plt.gca()
+                        
+                        # Add vertical line at the starting time (Day 0)
+                        plt.axvline(first_ts, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
+                        # Add day 0 label at the top of the line
+                        if day_labels and len(day_labels) > 0:
+                            day0_label = day_labels[0]
+                        else:
+                            day0_label = 'Day 0'
+                        ax.text(first_ts, ax.get_ylim()[1] * 0.95, day0_label, 
+                               rotation=90, verticalalignment='top', horizontalalignment='right',
+                               color='black', fontweight='bold', fontsize=12, alpha=0.9)
+                        
                         # Round first_ts to next day boundary
                         current = first_ts.replace(hour=0, minute=0, second=0, microsecond=0)
                         if current <= first_ts:
                             current += timedelta(days=1)
                         day_count = 1
-                        ax = plt.gca()
                         while current < last_ts:
                             plt.axvline(current, color='#d62728', linestyle=(0, (5, 5)), linewidth=1.5, alpha=0.8, zorder=0)
                             # Add day label at the top of the line
@@ -768,7 +792,7 @@ class PrometheusClient:
                                 label_text = f'Day {day_count + 1}'
                             ax.text(current, ax.get_ylim()[1] * 0.95, label_text, 
                                    rotation=90, verticalalignment='top', horizontalalignment='right',
-                                   color='#d62728', fontweight='bold', fontsize=9, alpha=0.9)
+                                   color='black', fontweight='bold', fontsize=12, alpha=0.9)
                             current += timedelta(days=1)
                             day_count += 1
                     except Exception:

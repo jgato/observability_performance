@@ -62,10 +62,9 @@ When run **without** the `--spoke` parameter, the tool collects hub cluster obse
 
 #### Analysis Provided
 
-1. **Daily Usage Tables**: 24-hour consumption snapshot per day across N days
-2. **Hourly Trend Analysis**: Hourly breakdown for the full analysis window
-3. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with metric and time range in the filename
-4. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with same naming convention as graphs)
+1. **Hourly Trend Analysis**: Detailed hourly breakdown across the full analysis window
+2. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with metric and time range in the filename
+3. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with same naming convention as graphs)
 
 #### Example Hub Usage
 
@@ -108,10 +107,9 @@ When run **with** the `--spoke` parameter, the tool collects spoke cluster obser
 
 #### Analysis Provided
 
-1. **Daily Usage Tables**: 24-hour consumption snapshot per day across N days for spoke observability addon
-2. **Hourly Trend Analysis**: Hourly breakdown for the full analysis window
-3. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with `[SPOKE]` prefix and metric/time range in filename
-4. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with `[SPOKE]` prefix)
+1. **Hourly Trend Analysis**: Detailed hourly breakdown across the full analysis window for spoke observability addon
+2. **Visual Graphs**: Hourly metrics exported as PNG charts saved to `results/` with `[SPOKE]` prefix and metric/time range in filename
+3. **CSV Data Export**: Hourly metrics exported as CSV files with timestamp, raw values, and human-readable formatted values (saved to `results/` with `[SPOKE]` prefix)
 
 #### Key Differences from Hub Analysis
 
@@ -123,7 +121,7 @@ When run **with** the `--spoke` parameter, the tool collects spoke cluster obser
 #### Example Spoke Usage
 
 ```bash
-# Analyze spoke cluster observability impact for 3 days
+# Analyze spoke cluster observability impact with hourly analysis
 python main.py \
   --token sha256~abc123... \
   --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \
