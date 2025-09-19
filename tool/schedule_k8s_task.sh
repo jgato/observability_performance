@@ -17,19 +17,33 @@ show_usage() {
     echo "  delete    - Delete the Kubernetes manifest (oc delete -f)"
     echo ""
     echo "Arguments:"
-    echo "  manifest_file   - Path to the Kubernetes YAML manifest file"
-    echo "  kubeconfig_file - Path to the kubeconfig file"
+    echo "  manifest_file   - ABSOLUTE path to the Kubernetes YAML manifest file"
+    echo "  kubeconfig_file - ABSOLUTE path to the kubeconfig file"
     echo "  date_time       - When to execute the task (format: DD/MM/YYYY HH:MM:SS)"
     echo ""
     echo "Examples:"
-    echo "  $0 create /path/to/deployment.yaml /path/to/kubeconfig \"25/12/2025 14:30:00\""
-    echo "  $0 delete /path/to/service.yaml /path/to/kubeconfig \"26/12/2025 09:00:00\""
+    echo "  $0 create /home/user/deployment.yaml /home/user/kubeconfig \"25/12/2025 14:30:00\""
+    echo "  $0 delete /home/user/service.yaml /home/user/kubeconfig \"26/12/2025 09:00:00\""
+    echo ""
+    echo "Note: Both manifest_file and kubeconfig_file MUST be absolute paths (starting with /)"
 }
 
 validate_command() {
     local cmd="$1"
     if [[ "$cmd" != "create" && "$cmd" != "delete" ]]; then
         echo "Error: Command must be either 'create' or 'delete'"
+        return 1
+    fi
+}
+
+validate_absolute_path() {
+    local file_path="$1"
+    local description="$2"
+    
+    # Check if path starts with /
+    if [[ ! "$file_path" =~ ^/ ]]; then
+        echo "Error: $description must be an absolute path (starting with /)"
+        echo "Provided: $file_path"
         return 1
     fi
 }
@@ -138,6 +152,16 @@ if ! validate_command "$COMMAND"; then
     exit 1
 fi
 
+# Validate absolute paths
+if ! validate_absolute_path "$MANIFEST_FILE" "Manifest file path"; then
+    exit 1
+fi
+
+if ! validate_absolute_path "$KUBECONFIG_FILE" "Kubeconfig file path"; then
+    exit 1
+fi
+
+# Validate file existence
 if ! validate_file_exists "$MANIFEST_FILE" "Manifest"; then
     exit 1
 fi
