@@ -85,6 +85,14 @@ def show_help():
     print("   Default:     If not provided, uses ['', 'extra-metrics', 'new-alerts']")
     print()
     
+    print("📊 --include-local-monitoring (Optional)")
+    print("   Description: Include metrics collection from openshift-monitoring namespace")
+    print("   Purpose:     Collect CPU, memory, and network traffic metrics from the local")
+    print("                OpenShift monitoring infrastructure namespace")
+    print("   Example:     --include-local-monitoring")
+    print("   Note:        Can be combined used with spoke or hub analysis")
+    print()
+    
     print("HOW TO GET THESE VALUES:")
     print("-" * 50)
     print()
@@ -146,6 +154,13 @@ def show_help():
     print("  --date '15/01/2024 14:30:00' \\")
     print("  --spoke")
     print()
+    print("Hub cluster analysis with local monitoring:")
+    print("python main.py \\")
+    print("  --token sha256~abcd1234efgh5678ijkl9012mnop3456qrst7890uvwx1234yz \\")
+    print("  --url https://prometheus-k8s-openshift-monitoring.apps.cluster.example.com \\")
+    print("  --date '15/01/2024 14:30:00' \\")
+    print("  --include-local-monitoring")
+    print()
     
     print("TROUBLESHOOTING:")
     print("-" * 50)
@@ -203,8 +218,8 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
             prefix=prefix
         )
 
-def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_labels=None): 
-    """
+def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_labels=None, local_monitoring=False): 
+    """ 
     Perform hourly observability impact analysis for the spoke cluster observability addon.
     
     Args:
@@ -252,12 +267,32 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_l
             print()
             print(f"📈 Display hourly traffic sent per second from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+            
+            if local_monitoring:
+
+                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                traffic_sent_hourly = client.get_network_transmit_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+
+                print()
+                print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, cpu_usage_hourly, "local-monitoring-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+                
+                print()
+                print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, memory_usage_hourly, "local-monitoring-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+
+                print()
+                print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, traffic_sent_hourly, "local-monitoring-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
 
 
-def observability_impact_analysis(client, date_str, days, prefix="", day_labels=None): 
+
+def observability_impact_analysis_hub(client, date_str, days, prefix="", day_labels=None, local_monitoring=False): 
     """
     Perform hourly observability impact analysis for the hub cluster observability components.
     
@@ -267,6 +302,7 @@ def observability_impact_analysis(client, date_str, days, prefix="", day_labels=
         days: Number of days to analyze (for hourly analysis time range)
         prefix: Prefix to add to the output filenames       
         day_labels: Optional list of labels for each day
+        local_monitoring: Optional boolean to include local monitoring metrics
     """
 
     # Perform hourly analysis for the specified time range.
@@ -308,6 +344,23 @@ def observability_impact_analysis(client, date_str, days, prefix="", day_labels=
             print()
             print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
             show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+
+            if local_monitoring:
+                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                traffic_received_hourly = client.get_network_receive_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+
+                print()
+                print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, cpu_usage_hourly, "local-monitoring-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+                
+                print()
+                print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, memory_usage_hourly, "local-monitoring-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+                
+                print()
+                print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
+                show_hourly_analysis(client, traffic_received_hourly, "local-monitoring-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
@@ -362,6 +415,12 @@ def main():
         nargs='+',
         help="Optional labels for each day (one label per day specified by --days). Example: --day-labels 'Baseline' 'Config A' 'Config B'"
     )
+    
+    parser.add_argument(
+        "--include-local-monitoring",
+        action="store_true",
+        help="Include metrics collection from openshift-monitoring namespace (CPU, memory, and network traffic)"
+    )
 
     
     try:
@@ -415,6 +474,12 @@ def main():
                 sys.exit(1)
             day_labels = args.day_labels
         
+        # if include local monitoring, we check also the Namespace "openshift-monitoring"
+        if args.include_local_monitoring:
+            local_monitoring = True
+        else:
+            local_monitoring = False
+
         print("🚀 Initializing OpenShift Prometheus Query Tool...")
         print(f"   Target URL: {args.url}")
         print(f"   Token: {args.token[:20]}... (truncated)")
@@ -451,14 +516,13 @@ def main():
         
         # Check for spoke parameter
         if args.spoke:
-            observability_impact_analysis_spoke(client, start_datetime, args.days, "[SPOKE]", day_labels)
+            observability_impact_analysis_spoke(client, start_datetime, args.days, "[SPOKE]", day_labels, local_monitoring)
             print("\n🎉 Observability impact analysis completed!")
         else:
         # Metrics for the hub cluster
-            observability_impact_analysis(client, start_datetime, args.days, "[HUB]", day_labels)
+            observability_impact_analysis_hub(client, start_datetime, args.days, "[HUB]", day_labels, local_monitoring)
             print("\n🎉 Observability impact analysis completed!")
-
-
+       
     except ValueError as ve:
         print(f"❌ Date parsing error: {ve}")
         print("💡 Please use the format: DD/MM/YYYY HH:MM:SS (e.g., 15/01/2024 14:30:00)")

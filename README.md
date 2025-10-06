@@ -13,6 +13,7 @@ This tool is designed to help assess the impact of different observability confi
 - **Configuration Impact Analysis**: Compare metrics before and after enabling different observability features
 - **Multi-Day Trend Analysis**: Automatically collect data across consecutive days to observe patterns
 - **Hub vs Spoke Analysis**: Different metric sets for hub cluster and spoke cluster configurations
+- **Local Monitoring Analysis**: Optional collection of metrics from the OpenShift monitoring infrastructure itself
 - **Visual Reporting**: Generate graphs and tables showing consumption trends over time
 - **Storage Impact Assessment**: Focus on bucket usage and storage consumption patterns
 
@@ -42,6 +43,7 @@ python main.py --token <BEARER_TOKEN> --url <PROMETHEUS_URL> --date "DD/MM/YYYY 
 - `--days`: Number of days to analyze starting from `--date` (default: 3)
 - `--spoke`: Enable spoke cluster metrics collection
 - `--day-labels`: Custom labels for each day (space-separated list, one per day). Example: `--day-labels 'Baseline' 'Config A' 'Config B'`
+- `--include-local-monitoring`: Include metrics from the `openshift-monitoring` namespace (CPU, memory, and network traffic)
 
 ## Configuration Modes
 
