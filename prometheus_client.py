@@ -66,6 +66,52 @@ class PrometheusClient:
         except Exception:
             return False
     
+    @staticmethod
+    def _filter_incomplete_last_datapoint(result: Dict[str, Any], end_date: str, threshold_minutes: int = 5) -> Dict[str, Any]:
+        """
+        Filter out the last data point from query results if it's incomplete.
+        
+        An incomplete data point is one where the timestamp is significantly far from
+        the expected end_date, indicating missing data points in the aggregation window.
+        
+        Args:
+            result: Prometheus query result dictionary
+            end_date: Expected end date in RFC3339 format
+            threshold_minutes: Time gap threshold in minutes (default: 5)
+            
+        Returns:
+            Filtered result dictionary
+        """
+        try:
+            if not result.get('data', {}).get('result'):
+                return result
+            
+            # Parse end_date to datetime
+            try:
+                expected_end = datetime.strptime(end_date[:19], '%Y-%m-%dT%H:%M:%S')
+            except Exception:
+                expected_end = datetime.strptime(end_date[:19], '%Y-%m-%d %H:%M:%S')
+            
+            # Filter each series in the result
+            for series in result['data']['result']:
+                if 'values' in series and len(series['values']) >= 2:
+                    # Get the last timestamp
+                    last_timestamp_unix = float(series['values'][-1][0])
+                    last_timestamp = datetime.fromtimestamp(last_timestamp_unix)
+                    
+                    # Calculate time gap in minutes
+                    time_gap = (expected_end - last_timestamp).total_seconds() / 60
+                    
+                    # Remove last data point if gap exceeds threshold
+                    if time_gap > threshold_minutes:
+                        series['values'] = series['values'][:-1]
+            
+        except Exception:
+            # If filtering fails, return original result
+            pass
+        
+        return result
+    
     def run_custom_query(self, query: str) -> Dict[str, Any]:
         """
         Run a custom PromQL query.
@@ -87,7 +133,7 @@ class PrometheusClient:
             raise Exception(f"Failed to execute query: {e}")
 
     
-    def get_bucket_usage_for_date_range(self, bucket_name: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+    def get_bucket_usage_for_date_range(self, bucket_name: str, start_date: str, end_date: str, step: int, range: int=24, filter_incomplete: bool = True) -> Dict[str, Any]:
         """
         Get bucket usage between two specific dates using range queries.
         Uses NooBaa bucket usage metrics from OpenShift Data Foundation.
@@ -98,6 +144,7 @@ class PrometheusClient:
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
             range: Range in hours (e.g., 24 for 24-hour range)
+            filter_incomplete: Whether to filter out incomplete last data point (default: True)
         Returns:
             Query result with bucket usage metrics for the specified time range
             
@@ -126,6 +173,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
+                # Filter out incomplete last data point if requested
+                if filter_incomplete:
+                    result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
                 # Return empty result with helpful error message
@@ -150,7 +200,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query bucket usage for date range: {e}")
 
-    def get_cpu_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+    def get_cpu_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24, filter_incomplete: bool = True) -> Dict[str, Any]:
         """
         Get CPU usage for a specific namespace between two specific dates using range queries.
         Uses container CPU usage metrics from Kubernetes/OpenShift.
@@ -161,6 +211,7 @@ class PrometheusClient:
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
             range: Range in hours (e.g., 24 for 24-hour range)
+            filter_incomplete: Whether to filter out incomplete last data point (default: True)
         Returns:
             Query result with CPU usage metrics for the specified time range
             
@@ -189,6 +240,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
+                # Filter out incomplete last data point if requested
+                if filter_incomplete:
+                    result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
                 # Return empty result with helpful error message
@@ -214,7 +268,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query CPU usage for date range: {e}")
 
-    def get_memory_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+    def get_memory_usage_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24, filter_incomplete: bool = True) -> Dict[str, Any]:
         """
         Get memory usage for a specific namespace between two specific dates using range queries.
         Uses container memory usage metrics from Kubernetes/OpenShift.
@@ -225,6 +279,7 @@ class PrometheusClient:
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
             range: Range in hours (e.g., 24 for 24-hour range)
+            filter_incomplete: Whether to filter out incomplete last data point (default: True)
         Returns:
             Query result with memory usage metrics for the specified time range
             
@@ -253,6 +308,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
+                # Filter out incomplete last data point if requested
+                if filter_incomplete:
+                    result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
                 # Return empty result with helpful error message
@@ -278,7 +336,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query memory usage for date range: {e}")
 
-    def get_network_receive_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+    def get_network_receive_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24, filter_incomplete: bool = True) -> Dict[str, Any]:
         """
         Get network receive traffic for a specific namespace between two dates using range queries.
         Uses container network receive metrics from Kubernetes/OpenShift.
@@ -289,6 +347,7 @@ class PrometheusClient:
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
             range: Range in hours for the rate window (e.g., 24 for 24-hour range)
+            filter_incomplete: Whether to filter out incomplete last data point (default: True)
         Returns:
             Query result with network receive metrics (bytes per second) for the specified time range
 
@@ -315,6 +374,9 @@ class PrometheusClient:
             result = response.json()
 
             if result['data']['result']:
+                # Filter out incomplete last data point if requested
+                if filter_incomplete:
+                    result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
                 return {
@@ -337,7 +399,7 @@ class PrometheusClient:
         except Exception as e:
             raise Exception(f"Failed to query network receive traffic for date range: {e}")
 
-    def get_network_transmit_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24) -> Dict[str, Any]:
+    def get_network_transmit_for_date_range(self, namespace: str, start_date: str, end_date: str, step: int, range: int=24, filter_incomplete: bool = True) -> Dict[str, Any]:
         """
         Get network transmit traffic for a specific namespace between two dates using range queries.
         Uses container network transmit metrics from Kubernetes/OpenShift.
@@ -348,6 +410,7 @@ class PrometheusClient:
             end_date: End date in RFC3339 format (e.g., '2024-01-16T14:30:00Z')
             step: Step size in hours (e.g., 1 for 1-hour intervals)
             range: Range in hours for the rate window (e.g., 24 for 24-hour range)
+            filter_incomplete: Whether to filter out incomplete last data point (default: True)
         Returns:
             Query result with network transmit metrics (bytes per second) for the specified time range
 
@@ -374,6 +437,9 @@ class PrometheusClient:
             result = response.json()
 
             if result['data']['result']:
+                # Filter out incomplete last data point if requested
+                if filter_incomplete:
+                    result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
                 return {

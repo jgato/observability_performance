@@ -249,9 +249,9 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_l
 
             # Calculate hourly metrics with 1-hour intervals across the specified time range.
 
-            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
-            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
-            traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1)
+            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+            traffic_sent_hourly = client.get_network_transmit_for_date_range("open-cluster-management-addon-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
 
             # Use provided day_labels or default if none provided
             labels_to_use = day_labels if day_labels else ["", "extra-metrics", "new-alerts"]
@@ -270,9 +270,9 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_l
             
             if local_monitoring:
 
-                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
-                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
-                traffic_sent_hourly = client.get_network_transmit_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+                traffic_sent_hourly = client.get_network_transmit_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
 
                 print()
                 print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
@@ -322,10 +322,10 @@ def observability_impact_analysis_hub(client, date_str, days, prefix="", day_lab
             print("="*80)
             
             # Calculate hourly metrics with 1-hour intervals across the specified time range.
-            bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1, 1)
-            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
-            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
-            traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1)
+            bucket_usage_hourly = client.get_bucket_usage_for_date_range("observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+            cpu_usage_hourly = client.get_cpu_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+            memory_usage_hourly = client.get_memory_usage_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+            traffic_received_hourly = client.get_network_receive_for_date_range("open-cluster-management-observability", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
 
             # Use provided day_labels or default if none provided
             labels_to_use = day_labels if day_labels else ["", "extra-metrics", "new-alerts"]
@@ -346,9 +346,9 @@ def observability_impact_analysis_hub(client, date_str, days, prefix="", day_lab
             show_hourly_analysis(client, traffic_received_hourly, "[Observability] Traffic Received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
 
             if local_monitoring:
-                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
-                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
-                traffic_received_hourly = client.get_network_receive_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
+                cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+                memory_usage_hourly = client.get_memory_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
+                traffic_received_hourly = client.get_network_receive_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1, filter_incomplete=True)
 
                 print()
                 print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
