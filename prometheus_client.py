@@ -696,8 +696,8 @@ class PrometheusClient:
                     color='#1f77b4', markerfacecolor='#ff7f0e', markeredgecolor='#1f77b4')
             
             # Customize the plot
-            plt.title(f'📊 {prefix} Hourly Usage Trend - {metric_name} \n'
-                     f'📅 {start_time} to {end_time}', fontsize=16, fontweight='bold', pad=20)
+            plt.title(f' Hourly Usage Trend - {prefix}{metric_name} \n'
+                     f' {start_time} to {end_time}', fontsize=16, fontweight='bold', pad=20)
             
             plt.xlabel('Time', fontsize=12, fontweight='bold')
             
@@ -711,7 +711,7 @@ class PrometheusClient:
             elif metric_type == 'cpu_cores':
                 ylabel = 'CPU Usage (Cores)'
             elif metric_type == 'bytes_per_second':
-                ylabel = 'Network Receive (MB/s)'
+                ylabel = 'Network Receive/Sent (MB/s)'
             else:
                 ylabel = f'Value ({self._get_metric_unit_label(metric_type)})'
             
@@ -857,8 +857,8 @@ class PrometheusClient:
             start_date = start_time[:19].replace(':', '-').replace('T', '_')
             end_date = end_time[:19].replace(':', '-').replace('T', '_')
             cleaned_prefix = (prefix or "").strip().replace(" ", "_").replace("/", "-").replace("\\", "-")
-            prefix_part = f"{cleaned_prefix}_" if cleaned_prefix else ""
-            filename = f"{prefix_part}{metric_name}_{start_date}_to_{end_date}.png"
+            prefix_part = f"{cleaned_prefix}" if cleaned_prefix else ""
+            filename = f"{prefix_part}{metric_name} {start_date}_to_{end_date}.png"
             filepath = os.path.join(results_dir, filename)
             plt.savefig(filepath, dpi=300, bbox_inches='tight', 
                        facecolor='white', edgecolor='none')
@@ -981,9 +981,9 @@ class PrometheusClient:
             end_clean = end_time.replace(':', '-').replace('T', '_').replace('Z', '')
             
             if prefix:
-                csv_filename = f"{prefix}_{metric_name}_{start_clean}_to_{end_clean}.csv"
+                csv_filename = f"{prefix}{metric_name} {start_clean}_to_{end_clean}.csv"
             else:
-                csv_filename = f"{metric_name}_{start_clean}_to_{end_clean}.csv"
+                csv_filename = f"{metric_name} {start_clean}_to_{end_clean}.csv"
                 
             csv_path = os.path.join(output_dir, csv_filename)
             

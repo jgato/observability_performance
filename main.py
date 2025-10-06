@@ -190,7 +190,7 @@ def show_hourly_analysis(client, results_data, metric_name, first_range_start, l
     table_success = client.display_hourly_table_results(
         results_data,
         metric_name,
-        f"📈 Hourly Average Consumption ({first_range_start} to {last_range_end})",
+        f" Hourly Average Consumption ({first_range_start} to {last_range_end})",
         metric_type
     )
     
@@ -258,15 +258,15 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_l
 
             print()
             print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+            show_hourly_analysis(client, cpu_usage_hourly, "[Observability] CPU Consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
             
             print()
             print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+            show_hourly_analysis(client, memory_usage_hourly, "[Observability] Memory Consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
 
             print()
             print(f"📈 Display hourly traffic sent per second from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, traffic_sent_hourly, "observability-traffic-sent", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+            show_hourly_analysis(client, traffic_sent_hourly, "[Observability] Traffic Sent", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
             
             if local_monitoring:
 
@@ -276,15 +276,15 @@ def observability_impact_analysis_spoke(client, date_str, days, prefix="", day_l
 
                 print()
                 print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, cpu_usage_hourly, "local-monitoring-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+                show_hourly_analysis(client, cpu_usage_hourly, "[Local Monitoring] CPU Consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
                 
                 print()
                 print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, memory_usage_hourly, "local-monitoring-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+                show_hourly_analysis(client, memory_usage_hourly, "[Local Monitoring] Memory Consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
 
                 print()
                 print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, traffic_sent_hourly, "local-monitoring-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+                show_hourly_analysis(client, traffic_sent_hourly, "[Local Monitoring] Traffic Sent", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
 
 
     except Exception as e:
@@ -331,19 +331,19 @@ def observability_impact_analysis_hub(client, date_str, days, prefix="", day_lab
             labels_to_use = day_labels if day_labels else ["", "extra-metrics", "new-alerts"]
 
             print(f"📈 Display hourly observability bucket size from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, bucket_usage_hourly, "observability-bucket-size", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+            show_hourly_analysis(client, bucket_usage_hourly, "[Observability] Buckets Storage Size", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
             
             print()
             print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, cpu_usage_hourly, "observability-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+            show_hourly_analysis(client, cpu_usage_hourly, "[Observability] CPU Consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
             
             print()
             print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, memory_usage_hourly, "observability-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+            show_hourly_analysis(client, memory_usage_hourly, "[Observability] Memory Consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
 
             print()
             print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
-            show_hourly_analysis(client, traffic_received_hourly, "observability-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+            show_hourly_analysis(client, traffic_received_hourly, "[Observability] Traffic Received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
 
             if local_monitoring:
                 cpu_usage_hourly = client.get_cpu_usage_for_date_range("openshift-monitoring", first_range_start, last_range_end, 1, 1)
@@ -352,15 +352,15 @@ def observability_impact_analysis_hub(client, date_str, days, prefix="", day_lab
 
                 print()
                 print(f"📈 Display hourly cpu consumption from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, cpu_usage_hourly, "local-monitoring-cpu-consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
+                show_hourly_analysis(client, cpu_usage_hourly, "[Local Monitoring] CPU Consumption", first_range_start, last_range_end, "seconds", prefix, labels_to_use)  
                 
                 print()
                 print(f"📈 Display hourly memory consumption from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, memory_usage_hourly, "local-monitoring-memory-consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
+                show_hourly_analysis(client, memory_usage_hourly, "[Local Monitoring] Memory Consumption", first_range_start, last_range_end, "bytes", prefix, labels_to_use)
                 
                 print()
                 print(f"📈 Display hourly traffic received per second from {first_range_start} to {last_range_end}")
-                show_hourly_analysis(client, traffic_received_hourly, "local-monitoring-traffic-received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
+                show_hourly_analysis(client, traffic_received_hourly, "[Local Monitoring] Traffic Received", first_range_start, last_range_end, "bytes_per_second", prefix, labels_to_use)
 
     except Exception as e:
         print(f"❌ Metrics impact analysis failed: {e}")
