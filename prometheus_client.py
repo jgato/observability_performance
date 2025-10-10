@@ -112,6 +112,52 @@ class PrometheusClient:
         
         return result
     
+    @staticmethod
+    def _filter_incomplete_first_datapoint(result: Dict[str, Any], start_date: str, threshold_minutes: int = 5) -> Dict[str, Any]:
+        """
+        Filter out the first data point from query results if it's incomplete.
+        
+        An incomplete data point is one where the timestamp is significantly far from
+        the expected start_date, indicating missing data points in the aggregation window.
+        
+        Args:
+            result: Prometheus query result dictionary
+            start_date: Expected start date in RFC3339 format
+            threshold_minutes: Time gap threshold in minutes (default: 5)
+            
+        Returns:
+            Filtered result dictionary
+        """
+        try:
+            if not result.get('data', {}).get('result'):
+                return result
+            
+            # Parse start_date to datetime
+            try:
+                expected_start = datetime.strptime(start_date[:19], '%Y-%m-%dT%H:%M:%S')
+            except Exception:
+                expected_start = datetime.strptime(start_date[:19], '%Y-%m-%d %H:%M:%S')
+            
+            # Filter each series in the result
+            for series in result['data']['result']:
+                if 'values' in series and len(series['values']) >= 2:
+                    # Get the first timestamp
+                    first_timestamp_unix = float(series['values'][0][0])
+                    first_timestamp = datetime.fromtimestamp(first_timestamp_unix)
+                    
+                    # Calculate time gap in minutes
+                    time_gap = (first_timestamp - expected_start).total_seconds() / 60
+                    
+                    # Remove first data point if gap exceeds threshold
+                    if time_gap > threshold_minutes:
+                        series['values'] = series['values'][1:]
+            
+        except Exception:
+            # If filtering fails, return original result
+            pass
+        
+        return result
+    
     def run_custom_query(self, query: str) -> Dict[str, Any]:
         """
         Run a custom PromQL query.
@@ -173,8 +219,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
-                # Filter out incomplete last data point if requested
+                # Filter out incomplete data points if requested
                 if filter_incomplete:
+                    result = self._filter_incomplete_first_datapoint(result, start_date)
                     result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
@@ -240,8 +287,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
-                # Filter out incomplete last data point if requested
+                # Filter out incomplete data points if requested
                 if filter_incomplete:
+                    result = self._filter_incomplete_first_datapoint(result, start_date)
                     result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
@@ -308,8 +356,9 @@ class PrometheusClient:
             
             # Check if we got data
             if result['data']['result']:
-                # Filter out incomplete last data point if requested
+                # Filter out incomplete data points if requested
                 if filter_incomplete:
+                    result = self._filter_incomplete_first_datapoint(result, start_date)
                     result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
@@ -374,8 +423,9 @@ class PrometheusClient:
             result = response.json()
 
             if result['data']['result']:
-                # Filter out incomplete last data point if requested
+                # Filter out incomplete data points if requested
                 if filter_incomplete:
+                    result = self._filter_incomplete_first_datapoint(result, start_date)
                     result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
@@ -437,8 +487,9 @@ class PrometheusClient:
             result = response.json()
 
             if result['data']['result']:
-                # Filter out incomplete last data point if requested
+                # Filter out incomplete data points if requested
                 if filter_incomplete:
+                    result = self._filter_incomplete_first_datapoint(result, start_date)
                     result = self._filter_incomplete_last_datapoint(result, end_date)
                 return result
             else:
