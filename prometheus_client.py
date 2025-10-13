@@ -50,6 +50,8 @@ class PrometheusClient:
         self.session.verify = False
         # Suppress SSL warnings
         requests.packages.urllib3.disable_warnings()
+        # Store the current run directory (created on first use)
+        self._current_run_dir = None
     
     def check_connection(self) -> bool:
         """
@@ -65,6 +67,37 @@ class PrometheusClient:
             return response.status_code == 200
         except Exception:
             return False
+    
+    def _get_run_directory(self, base_output_dir: str = ".") -> tuple:
+        """
+        Get or create the timestamped run directory structure.
+        Creates: results/DD-MM-YYYY_HH/{pics,csv}
+        
+        Args:
+            base_output_dir: Base directory for output (default: current directory)
+            
+        Returns:
+            Tuple of (pics_dir, csv_dir)
+        """
+        if self._current_run_dir is None:
+            # Create timestamp for this run
+            timestamp = datetime.now().strftime("%d-%m-%Y_%H")
+            
+            # Create run directory inside results
+            results_base = os.path.join(base_output_dir, "results")
+            run_dir = os.path.join(results_base, timestamp)
+            
+            # Create subdirectories for pics and csv
+            pics_dir = os.path.join(run_dir, "pics")
+            csv_dir = os.path.join(run_dir, "csv")
+            
+            os.makedirs(pics_dir, exist_ok=True)
+            os.makedirs(csv_dir, exist_ok=True)
+            
+            self._current_run_dir = (pics_dir, csv_dir)
+            print(f"📁 Created run directory: {run_dir}")
+        
+        return self._current_run_dir
     
     @staticmethod
     def _filter_incomplete_last_datapoint(result: Dict[str, Any], end_date: str, threshold_minutes: int = 5) -> Dict[str, Any]:
@@ -808,7 +841,7 @@ class PrometheusClient:
             timestamps, values = zip(*combined)
             
             # Create the plot
-            plt.figure(figsize=(14, 8))
+            plt.figure(figsize=(20, 8))
             plt.plot(timestamps, values, marker='o', linewidth=2, markersize=4, 
                     color='#1f77b4', markerfacecolor='#ff7f0e', markeredgecolor='#1f77b4')
             
@@ -836,7 +869,7 @@ class PrometheusClient:
             
             # Format x-axis to show dates nicely
             plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%m/%d %H:%M'))
-            plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=6))  # Show every 6 hours
+            plt.gca().xaxis.set_major_locator(mdates.HourLocator(interval=3))  # Show every 3 hours
             plt.xticks(rotation=45)
             
             # Draw vertical lines at day boundaries (every 24h) with robust parsing and visible style
@@ -914,16 +947,19 @@ class PrometheusClient:
                     except Exception:
                         pass
             
-            # Set Y-axis to start from 0 for better scale perspective
-            plt.ylim(bottom=0)
+            # Calculate statistics for proper scaling
+            avg_usage = sum(values) / len(values)
+            min_usage = min(values)
+            max_usage = max(values)
+            
+            # Set Y-axis with padding at the top (15% margin above max value)
+            y_margin = max_usage * 0.15
+            plt.ylim(bottom=0, top=max_usage + y_margin)
             
             # Add grid for better readability
             plt.grid(True, alpha=0.3, linestyle='--')
             
             # Add statistics text box
-            avg_usage = sum(values) / len(values)
-            min_usage = min(values)
-            max_usage = max(values)
             growth_rate = ((values[-1] - values[0]) / values[0]) * 100 if values[0] != 0 else 0
             
             # Format values according to the transformed display values
@@ -959,16 +995,17 @@ class PrometheusClient:
                         f'• Growth: {growth_rate:+.1f}%\n' \
                         f'• Points: {len(values)}'
             
-            plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, 
-                    verticalalignment='top', bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8),
+            # Position stats box outside graph boundaries (to the right)
+            plt.text(1.02, 0.98, stats_text, transform=plt.gca().transAxes, 
+                    verticalalignment='top', horizontalalignment='left',
+                    bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8),
                     fontsize=10, fontfamily='monospace')
             
-            # Adjust layout to prevent label cutoff
-            plt.tight_layout()
+            # Adjust layout to prevent label cutoff, with extra space for external text box
+            plt.tight_layout(rect=[0, 0, 0.85, 1])
             
-            # Create results directory if it doesn't exist
-            results_dir = os.path.join(output_dir, "results")
-            os.makedirs(results_dir, exist_ok=True)
+            # Get the run directory structure (pics and csv dirs)
+            pics_dir, _ = self._get_run_directory(output_dir)
             
             # Create filename with metric name and full range
             start_date = start_time[:19].replace(':', '-').replace('T', '_')
@@ -976,7 +1013,7 @@ class PrometheusClient:
             cleaned_prefix = (prefix or "").strip().replace(" ", "_").replace("/", "-").replace("\\", "-")
             prefix_part = f"{cleaned_prefix}" if cleaned_prefix else ""
             filename = f"{prefix_part}{metric_name} {start_date}_to_{end_date}.png"
-            filepath = os.path.join(results_dir, filename)
+            filepath = os.path.join(pics_dir, filename)
             plt.savefig(filepath, dpi=300, bbox_inches='tight', 
                        facecolor='white', edgecolor='none')
             
@@ -1090,8 +1127,8 @@ class PrometheusClient:
         try:
             print(f"\n📊 Exporting CSV data...")
             
-            # Create output directory if it doesn't exist
-            os.makedirs(output_dir, exist_ok=True)
+            # Get the run directory structure (pics and csv dirs)
+            _, csv_dir = self._get_run_directory(output_dir)
             
             # Generate filename following the same pattern as graphs
             start_clean = start_time.replace(':', '-').replace('T', '_').replace('Z', '')
@@ -1102,7 +1139,7 @@ class PrometheusClient:
             else:
                 csv_filename = f"{metric_name} {start_clean}_to_{end_clean}.csv"
                 
-            csv_path = os.path.join(output_dir, csv_filename)
+            csv_path = os.path.join(csv_dir, csv_filename)
             
             # Extract data from Prometheus results
             csv_data = []
