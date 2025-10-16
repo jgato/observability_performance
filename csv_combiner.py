@@ -34,6 +34,7 @@ class CSVCombiner:
         self.combined_data = {}  # timestamp -> value mapping to avoid duplicates
         self.metric_name = ""
         self.metric_unit = ""
+        self.metric_type = None  # Track metric type: 'cpu', 'memory', 'traffic', or None
     
     def read_csv_file(self, filepath: str) -> int:
         """
@@ -62,10 +63,13 @@ class CSVCombiner:
                     value_str = None
                     if 'value_seconds' in row:
                         value_str = row.get('value_seconds', '').strip()
-                    elif 'value_bytes' in row:
-                        value_str = row.get('value_bytes', '').strip()
+                        self.metric_type = 'cpu'
                     elif 'value_bytes_per_s' in row:
                         value_str = row.get('value_bytes_per_s', '').strip()
+                        self.metric_type = 'traffic'
+                    elif 'value_bytes' in row:
+                        value_str = row.get('value_bytes', '').strip()
+                        self.metric_type = 'memory'
                     elif 'value' in row:
                         value_str = row.get('value', '').strip()
                     elif 'Value' in row:
@@ -76,6 +80,17 @@ class CSVCombiner:
                             # Parse timestamp
                             timestamp = datetime.strptime(timestamp_str, '%Y-%m-%d %H:%M:%S')
                             value = float(value_str)
+                            
+                            # Convert values based on metric type
+                            if self.metric_type == 'cpu':
+                                # Convert CPU seconds to percentage
+                                value = value * 100
+                            elif self.metric_type == 'memory':
+                                # Convert bytes to GB
+                                value = value / (1024 ** 3)
+                            elif self.metric_type == 'traffic':
+                                # Convert bytes/s to MB/s
+                                value = value / (1024 ** 2)
                             
                             # Add to combined data (overwrites duplicates)
                             self.combined_data[timestamp] = value
@@ -183,8 +198,17 @@ class CSVCombiner:
         plt.title(graph_title, fontsize=16, fontweight='bold', pad=20)
         plt.xlabel('Time', fontsize=12, fontweight='bold')
         
-        # Set ylabel based on metric unit
-        ylabel = f'Value ({self.metric_unit})' if self.metric_unit else 'Value'
+        # Set y-axis label based on metric type
+        if self.metric_type == 'cpu':
+            ylabel = 'CPU Usage (%)'
+        elif self.metric_type == 'memory':
+            ylabel = 'Memory Usage (GB)'
+        elif self.metric_type == 'traffic':
+            ylabel = 'Traffic Sent (MB/s)'
+        elif self.metric_unit:
+            ylabel = f'Value ({self.metric_unit})'
+        else:
+            ylabel = 'Value'
         plt.ylabel(ylabel, fontsize=12, fontweight='bold')
         
         # Format x-axis
@@ -247,13 +271,35 @@ class CSVCombiner:
         # Add grid
         plt.grid(True, alpha=0.3, linestyle='--')
         
-        # Add statistics text box
-        stats_text = f'📊 Statistics:\n' \
-                    f'• Avg: {avg_value:.2f}\n' \
-                    f'• Min: {min_value:.2f}\n' \
-                    f'• Max: {max_value:.2f}\n' \
-                    f'• Growth: {growth_rate:+.1f}%\n' \
-                    f'• Points: {len(values)}'
+        # Add statistics text box with appropriate units
+        if self.metric_type == 'cpu':
+            stats_text = f'📊 Statistics:\n' \
+                        f'• Avg: {avg_value:.2f}%\n' \
+                        f'• Min: {min_value:.2f}%\n' \
+                        f'• Max: {max_value:.2f}%\n' \
+                        f'• Growth: {growth_rate:+.1f}%\n' \
+                        f'• Points: {len(values)}'
+        elif self.metric_type == 'memory':
+            stats_text = f'📊 Statistics:\n' \
+                        f'• Avg: {avg_value:.2f} GB\n' \
+                        f'• Min: {min_value:.2f} GB\n' \
+                        f'• Max: {max_value:.2f} GB\n' \
+                        f'• Growth: {growth_rate:+.1f}%\n' \
+                        f'• Points: {len(values)}'
+        elif self.metric_type == 'traffic':
+            stats_text = f'📊 Statistics:\n' \
+                        f'• Avg: {avg_value:.2f} MB/s\n' \
+                        f'• Min: {min_value:.2f} MB/s\n' \
+                        f'• Max: {max_value:.2f} MB/s\n' \
+                        f'• Growth: {growth_rate:+.1f}%\n' \
+                        f'• Points: {len(values)}'
+        else:
+            stats_text = f'📊 Statistics:\n' \
+                        f'• Avg: {avg_value:.2f}\n' \
+                        f'• Min: {min_value:.2f}\n' \
+                        f'• Max: {max_value:.2f}\n' \
+                        f'• Growth: {growth_rate:+.1f}%\n' \
+                        f'• Points: {len(values)}'
         
         # Position stats box outside graph boundaries (to the right)
         plt.text(1.02, 0.98, stats_text, transform=plt.gca().transAxes,
